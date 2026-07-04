@@ -68,8 +68,6 @@ document.querySelector('#app').innerHTML = `<header>
 <button id="nav-staff" onclick="tab('staff')">RT</button>
 </nav>`
 
-import { createClient } from '@supabase/supabase-js'
-
 const SUPABASE_URL = 'https://tkfhurvccztplhrmxlun.supabase.co'
 const SUPABASE_KEY = 'sb_publishable_llvNkCG2IVoZPPxrKgwyDA_cri9RZ'
 const db = createClient(SUPABASE_URL, SUPABASE_KEY)
