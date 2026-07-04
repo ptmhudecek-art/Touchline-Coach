@@ -21,6 +21,15 @@ document.querySelector('#app').innerHTML = `<header>
     <div class="row" style="margin-top:12px"><span id="hYes" class="pill green">0 přijde</span><span id="hExc" class="pill red">0 omluveno</span><span id="hNone" class="pill gray">0 bez reakce</span></div>
     <p class="small">Klikni pro detail.</p>
   </div>
+  <div class="card">
+    <div class="space">
+      <div>
+        <h3>Nejbližší utkání</h3>
+        <div id="matchInfo" class="small">Zatím není zadané žádné utkání.</div>
+      </div>
+      <span class="pill blue">Utkání</span>
+    </div>
+  </div>
   <div id="homeDetail" class="hidden">
     <div class="card"><h3>Obsah tréninku</h3><div id="homeBlocks"></div></div>
     <div class="card"><h3>Přehled docházky</h3><div class="row"><span id="sumYes" class="pill green">0 Přijde</span><span id="sumInj" class="pill red">0 Zranění</span><span id="sumWork" class="pill yellow">0 Práce/škola</span><span id="sumOther" class="pill gray">0 Ostatní</span><span id="sumNone" class="pill gray">0 Bez odpovědi</span></div></div>
@@ -32,7 +41,26 @@ document.querySelector('#app').innerHTML = `<header>
   <div class="card"><h2 id="selTitle">Vyber den</h2>
     <div id="editor" class="hidden">
       <div class="row"><input id="trTime" placeholder="Čas 18:00–19:30"><input id="trPlace" placeholder="Místo"></div>
-      <h3>Plán tréninku</h3><p class="small">Enter přidá další blok.</p><div id="blocks"></div>
+      <div class="card" style="background:#11141a">
+        <h3>Typ události</h3>
+        <div class="row">
+          <button class="btn" id="typeTraining">Trénink</button>
+          <button class="btn2" id="typeMatch">Utkání</button>
+        </div>
+        <input id="eventType" type="hidden" value="training">
+        <div id="matchFields" class="hidden" style="margin-top:10px">
+          <input id="matchOpponent" placeholder="Soupeř, např. FK Hrádek">
+          <div style="height:8px"></div>
+          <select id="matchHomeAway">
+            <option value="home">Doma</option>
+            <option value="away">Venku</option>
+          </select>
+          <div style="height:8px"></div>
+          <input id="matchMeet" placeholder="Sraz, např. 16:15">
+          <div class="small">Utkání se automaticky ukáže na Home jako nejbližší zápas.</div>
+        </div>
+      </div>
+      <h3 id="planTitle">Plán tréninku</h3><p class="small">Enter přidá další blok.</p><div id="blocks"></div>
       <div class="row"><button class="btn" onclick="addBlock()">Přidat blok</button><button class="btn" onclick="saveTraining()">Uložit trénink</button><button class="danger" onclick="deleteTraining()">Smazat trénink</button></div>
     </div>
   </div>
@@ -172,6 +200,14 @@ function renderSummary(){
   ;[['sumYes',s.yes+' Přijde'],['sumInj',s.injury+' Zranění'],['sumWork',s.work+' Práce/škola'],['sumOther',s.other+' Ostatní'],['sumNone',s.none+' Bez odpovědi'],['hYes',s.yes+' přijde'],['hExc',exc+' omluveno'],['hNone',s.none+' bez reakce']].forEach(x=>{let e=document.getElementById(x[0]);if(e)e.textContent=x[1]})
 }
 
+function setEventType(type){
+  $('eventType').value = type
+  $('matchFields').classList.toggle('hidden', type !== 'match')
+  $('planTitle').textContent = type === 'match' ? 'Poznámky k utkání' : 'Plán tréninku'
+  $('typeTraining').className = type === 'training' ? 'btn' : 'btn2'
+  $('typeMatch').className = type === 'match' ? 'btn' : 'btn2'
+}
+
 function renderCal(){
   let grid=document.getElementById('cal'); grid.innerHTML=''
   let months=['leden','únor','březen','duben','květen','červen','červenec','srpen','září','říjen','listopad','prosinec']
@@ -200,7 +236,8 @@ async function saveTraining(){
   await reloadAll()
 }
 async function deleteTraining(){let old=trainings.find(t=>t.training_date===selectedDate);if(old)await db.from('trainings').delete().eq('id',old.id);selectedDate=null;document.getElementById('editor').classList.add('hidden');await reloadAll()}
-function nearestTraining(){let today=iso(new Date());return trainings.find(t=>t.training_date>=today)||trainings[trainings.length-1]}
+function nearestTraining(){let today=iso(new Date());let list=trainings.filter(t=>(t.event_type||'training')==='training');return list.find(t=>t.training_date>=today)||list[list.length-1]}
+function nearestMatch(){let today=iso(new Date());let list=trainings.filter(t=>t.event_type==='match');return list.find(t=>t.training_date>=today)||list[list.length-1]}
 function renderHomeTraining(){let tr=nearestTraining(),info=document.getElementById('homeInfo'),box=document.getElementById('homeBlocks');if(!tr){info.textContent='Zatím není žádný trénink.';box.innerHTML='';return}info.textContent=tr.training_date.split('-').reverse().join('.')+' • '+(tr.time_text||'čas nezadán')+' • '+(tr.place||'místo nezadáno');box.innerHTML=(blocksByTraining[tr.id]||[]).map(b=>`<div class=block><div class=space><b>${esc(b.title)}</b><span class="pill blue">${esc(b.minutes)}´</span></div></div>`).join('')}
 
 function renderVault(){let box=document.getElementById('folderList');if(!folders.length){box.innerHTML='<p class=small>Zatím žádné složky.</p>';return}box.innerHTML=folders.map(f=>`<div class=block><div class=space><b>📂 ${esc(f.name)}</b><button class=btn2 onclick="openFolder('${f.id}')">Otevřít</button></div></div>`).join('')}
