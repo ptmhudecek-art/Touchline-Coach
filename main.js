@@ -44,8 +44,8 @@ document.querySelector('#app').innerHTML = `<header>
       <div class="card" style="background:#11141a">
         <h3>Typ události</h3>
         <div class="row">
-          <button class="btn" id="typeTraining">Trénink</button>
-          <button class="btn2" id="typeMatch">Utkání</button>
+          <button type="button" class="btn" id="typeTraining">Trénink</button>
+          <button type="button" class="btn2" id="typeMatch">Utkání</button>
         </div>
         <input id="eventType" type="hidden" value="training">
         <div id="matchFields" class="hidden" style="margin-top:10px">
@@ -201,11 +201,17 @@ function renderSummary(){
 }
 
 function setEventType(type){
-  $('eventType').value = type
-  $('matchFields').classList.toggle('hidden', type !== 'match')
-  $('planTitle').textContent = type === 'match' ? 'Poznámky k utkání' : 'Plán tréninku'
-  $('typeTraining').className = type === 'training' ? 'btn' : 'btn2'
-  $('typeMatch').className = type === 'match' ? 'btn' : 'btn2'
+  const eventType = $('eventType')
+  const matchFields = $('matchFields')
+  const planTitle = $('planTitle')
+  const typeTraining = $('typeTraining')
+  const typeMatch = $('typeMatch')
+  if(!eventType || !matchFields || !planTitle || !typeTraining || !typeMatch) return
+  eventType.value = type
+  matchFields.classList.toggle('hidden', type !== 'match')
+  planTitle.textContent = type === 'match' ? 'Poznámky k utkání' : 'Plán tréninku'
+  typeTraining.className = type === 'training' ? 'btn' : 'btn2'
+  typeMatch.className = type === 'match' ? 'btn' : 'btn2'
 }
 
 function renderCal(){
