@@ -44,8 +44,8 @@ document.querySelector('#app').innerHTML = `<header>
       <div class="card" style="background:#11141a">
         <h3>Typ události</h3>
         <div class="row">
-          <button type="button" class="btn" id="typeTraining" onclick="window.setEventTypeHard(\'training\')">Trénink</button>
-          <button type="button" class="btn2" id="typeMatch" onclick="window.setEventTypeHard(\'match\')">Utkání</button>
+          <button type="button" class="btn" id="typeTraining">Trénink</button>
+          <button type="button" class="btn2" id="typeMatch">Utkání</button>
         </div>
         <input id="eventType" type="hidden" value="training">
         <div id="matchFields" class="hidden" style="margin-top:10px">
@@ -107,7 +107,7 @@ window.tab=tab; window.toggleDetail=toggleDetail; window.moveMonth=moveMonth; wi
 window.addOne=addOne; window.importPlayers=importPlayers; window.removePlayer=removePlayer; window.copyCodes=copyCodes; window.setAttendance=setAttendance
 window.toggleAddTeam=toggleAddTeam; window.addTeam=addTeam; window.selectTeam=selectTeam
 window.addFolder=addFolder; window.openFolder=openFolder; window.closeFolder=closeFolder; window.saveExercise=saveExercise; window.deleteExercise=deleteExercise
-window.addStaff=addStaff; window.deleteStaff=deleteStaff
+window.addStaff=addStaff; window.deleteStaff=deleteStaff; window.setEventType=setEventType
 
 function tab(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));document.getElementById('nav-'+id).classList.add('active');render()}
 function toggleDetail(){document.getElementById('homeDetail').classList.toggle('hidden')}
@@ -200,7 +200,25 @@ function renderSummary(){
   ;[['sumYes',s.yes+' Přijde'],['sumInj',s.injury+' Zranění'],['sumWork',s.work+' Práce/škola'],['sumOther',s.other+' Ostatní'],['sumNone',s.none+' Bez odpovědi'],['hYes',s.yes+' přijde'],['hExc',exc+' omluveno'],['hNone',s.none+' bez reakce']].forEach(x=>{let e=document.getElementById(x[0]);if(e)e.textContent=x[1]})
 }
 
-function setEventType(type){ window.setEventTypeHard(type) }
+function setEventType(type){
+  const eventType=document.getElementById('eventType')
+  const matchFields=document.getElementById('matchFields')
+  const planTitle=document.getElementById('planTitle')
+  const trBtn=document.getElementById('typeTraining')
+  const maBtn=document.getElementById('typeMatch')
+  if(!eventType||!matchFields||!planTitle||!trBtn||!maBtn)return
+  eventType.value=type
+  matchFields.classList.toggle('hidden', type!=='match')
+  planTitle.textContent=type==='match'?'Poznámky k utkání':'Plán tréninku'
+  trBtn.className=type==='training'?'btn':'btn2'
+  maBtn.className=type==='match'?'btn':'btn2'
+}
+function wireEventTypeButtons(){
+  const trBtn=document.getElementById('typeTraining')
+  const maBtn=document.getElementById('typeMatch')
+  if(trBtn) trBtn.onclick=(e)=>{e.preventDefault();setEventType('training')}
+  if(maBtn) maBtn.onclick=(e)=>{e.preventDefault();setEventType('match')}
+}
 
 function renderCal(){
   let grid=document.getElementById('cal'); grid.innerHTML=''
@@ -212,7 +230,7 @@ function renderCal(){
   for(let d=1;d<=days;d++){let date=iso(new Date(y,m,d)),has=trainings.some(t=>t.training_date===date);grid.innerHTML+=`<button class="day ${has?'has':''} ${date===today?'today':''}" onclick="selectDay('${date}')">${d}${has?'<span class=dot></span>':''}</button>`}
 }
 function moveMonth(n){viewDate=new Date(viewDate.getFullYear(),viewDate.getMonth()+n,1);renderCal()}
-function selectDay(date){selectedDate=date;document.getElementById('selTitle').textContent='Trénink '+date.split('-').reverse().join('.');document.getElementById('editor').classList.remove('hidden');let tr=trainings.find(t=>t.training_date===date)||{time_text:'',place:'',id:null};document.getElementById('trTime').value=tr.time_text||'';document.getElementById('trPlace').value=tr.place||'';renderBlocks(tr.id?blocksByTraining[tr.id]||[]:[{title:'Aktivace',minutes:'20'}])}
+function selectDay(date){selectedDate=date;let tr=trainings.find(t=>t.training_date===date)||{time_text:'',place:'',id:null,event_type:'training',opponent:'',home_away:'home',meet_time:''};document.getElementById('selTitle').textContent=(tr.event_type==='match'?'Utkání ':'Trénink ')+date.split('-').reverse().join('.');document.getElementById('editor').classList.remove('hidden');document.getElementById('trTime').value=tr.time_text||'';document.getElementById('trPlace').value=tr.place||'';document.getElementById('matchOpponent').value=tr.opponent||'';document.getElementById('matchHomeAway').value=tr.home_away||'home';document.getElementById('matchMeet').value=tr.meet_time||'';wireEventTypeButtons();setEventType(tr.event_type||'training');renderBlocks(tr.id?blocksByTraining[tr.id]||[]:[{title:(tr.event_type==='match'?'Sraz / organizace':'Aktivace'),minutes:(tr.event_type==='match'?'':'20')}])}
 function renderBlocks(b){let box=document.getElementById('blocks');box.innerHTML='';b.forEach((x,i)=>box.innerHTML+=`<div class=block><div class=blockLine><input class=bn value="${esc(x.title||'')}" placeholder="Část tréninku" onkeydown="if(event.key==='Enter'){event.preventDefault();addBlock()}"><input class=bm value="${esc(x.minutes||'')}" placeholder="20´"><button class=danger onclick="removeBlock(${i})">×</button></div></div>`)}
 function getBlocks(){let n=[...document.querySelectorAll('.bn')],m=[...document.querySelectorAll('.bm')];return n.map((x,i)=>({title:pretty(x.value),minutes:pretty(m[i].value),position:i})).filter(x=>x.title||x.minutes)}
 function addBlock(){let b=getBlocks();b.push({title:'',minutes:''});renderBlocks(b)}
@@ -220,7 +238,7 @@ function removeBlock(i){let b=getBlocks();b.splice(i,1);renderBlocks(b.length?b:
 async function saveTraining(){
   if(!selectedDate)return
   let old=trainings.find(t=>t.training_date===selectedDate)
-  let payload={team_id:currentTeam.id,training_date:selectedDate,time_text:document.getElementById('trTime').value,place:document.getElementById('trPlace').value}
+  let payload={team_id:currentTeam.id,training_date:selectedDate,time_text:document.getElementById('trTime').value,place:document.getElementById('trPlace').value,event_type:document.getElementById('eventType').value,opponent:document.getElementById('matchOpponent').value,home_away:document.getElementById('matchHomeAway').value,meet_time:document.getElementById('matchMeet').value}
   let tr
   if(old){await db.from('trainings').update(payload).eq('id',old.id); tr=old}
   else {let {data}=await db.from('trainings').insert(payload).select().single(); tr=data}
@@ -232,7 +250,8 @@ async function saveTraining(){
 async function deleteTraining(){let old=trainings.find(t=>t.training_date===selectedDate);if(old)await db.from('trainings').delete().eq('id',old.id);selectedDate=null;document.getElementById('editor').classList.add('hidden');await reloadAll()}
 function nearestTraining(){let today=iso(new Date());let list=trainings.filter(t=>(t.event_type||'training')==='training');return list.find(t=>t.training_date>=today)||list[list.length-1]}
 function nearestMatch(){let today=iso(new Date());let list=trainings.filter(t=>t.event_type==='match');return list.find(t=>t.training_date>=today)||list[list.length-1]}
-function renderHomeTraining(){let tr=nearestTraining(),info=document.getElementById('homeInfo'),box=document.getElementById('homeBlocks');if(!tr){info.textContent='Zatím není žádný trénink.';box.innerHTML='';return}info.textContent=tr.training_date.split('-').reverse().join('.')+' • '+(tr.time_text||'čas nezadán')+' • '+(tr.place||'místo nezadáno');box.innerHTML=(blocksByTraining[tr.id]||[]).map(b=>`<div class=block><div class=space><b>${esc(b.title)}</b><span class="pill blue">${esc(b.minutes)}´</span></div></div>`).join('')}
+function renderHomeTraining(){let tr=nearestTraining(),info=document.getElementById('homeInfo'),box=document.getElementById('homeBlocks');if(!tr){info.textContent='Zatím není žádný trénink.';box.innerHTML='';renderMatchInfo();return}info.textContent=tr.training_date.split('-').reverse().join('.')+' • '+(tr.time_text||'čas nezadán')+' • '+(tr.place||'místo nezadáno');box.innerHTML=(blocksByTraining[tr.id]||[]).map(b=>`<div class=block><div class=space><b>${esc(b.title)}</b><span class="pill blue">${esc(b.minutes)}´</span></div></div>`).join('');renderMatchInfo()}
+function renderMatchInfo(){let m=nearestMatch(),el=document.getElementById('matchInfo');if(!el)return;if(!m){el.textContent='Zatím není zadané žádné utkání.';return}let venue=m.home_away==='away'?'venku':'doma';el.innerHTML=`${m.training_date.split('-').reverse().join('.')} • ${m.time_text||'čas nezadán'}<br><b>TJ Město Zbiroh ${venue}</b> vs ${esc(m.opponent||'soupeř nezadán')}<br>${esc(m.place||'místo nezadáno')}${m.meet_time?` • sraz ${esc(m.meet_time)}`:''}`}
 
 function renderVault(){let box=document.getElementById('folderList');if(!folders.length){box.innerHTML='<p class=small>Zatím žádné složky.</p>';return}box.innerHTML=folders.map(f=>`<div class=block><div class=space><b>📂 ${esc(f.name)}</b><button class=btn2 onclick="openFolder('${f.id}')">Otevřít</button></div></div>`).join('')}
 async function addFolder(){let name=pretty(document.getElementById('folderName').value);if(!name)return;await db.from('vault_folders').insert({club_id:club.id,name});document.getElementById('folderName').value='';await reloadAll()}
