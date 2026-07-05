@@ -11,6 +11,9 @@ document.querySelector('#app').innerHTML = `<header>
     <div class="row"><input id="newTeamName" placeholder="Nový tým, např. U19"><button class="btn" onclick="addTeam()">Přidat</button></div>
   </div>
 </header>
+<div style="background:#8BFF3D;color:#071007;font-weight:900;text-align:center;padding:10px;border-bottom:2px solid #071007">
+  TEST VERZE – KLIK OPRAVA
+</div>
 
 <main>
 <section id="home" class="page active">
