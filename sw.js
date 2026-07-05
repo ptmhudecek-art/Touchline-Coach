@@ -1,12 +1,15 @@
-const CACHE_NAME = 'touchline-coach-v1';
+const CACHE_NAME = 'touchline-coach-v11';
 const ASSETS = [
   '/',
   '/index.html',
   '/manifest.webmanifest',
-  '/zbiroh.png',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
-  '/icons/apple-touch-icon.png'
+  '/icons/apple-touch-icon.png',
+  '/zbiroh.png'
 ];
 
 self.addEventListener('install', event => {

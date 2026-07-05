@@ -1,1 +1,1 @@
-// Touchline Coach Premium Home: aplikace je v index.html
+// Touchline Coach v1.1: app is in index.html

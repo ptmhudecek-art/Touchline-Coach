@@ -1,21 +1,14 @@
-# Touchline Coach Premium Home PWA
+# Touchline Coach v1.1 Icon Fix Full
 
-Verze pro web i mobilní instalaci jako PWA.
+Nahraj celý obsah ZIPu do GitHubu a přepiš vše.
 
-Nahraj celý obsah ZIPu do GitHubu:
-- index.html
-- package.json
-- README.md
-- .gitignore
-- main.js
-- style.css
-- zbiroh.png
-- manifest.webmanifest
-- sw.js
-- icons/icon-192.png
-- icons/icon-512.png
-- icons/apple-touch-icon.png
+Důležité:
+- ikony jsou v kořeni i ve složce icons/
+- manifest má cache-busting ?v=11
+- service worker má novou cache touchline-coach-v11
 
 Po deployi:
-Android Chrome: menu ⋮ → Přidat na plochu / Instalovat aplikaci.
-iPhone Safari: Sdílet → Přidat na plochu.
+1. Vercel musí být Ready.
+2. V telefonu odinstalovat PWA.
+3. V Chrome otevřít: https://touchline-coach.vercel.app/?v=11
+4. Menu → Instalovat aplikaci / Přidat na plochu.
