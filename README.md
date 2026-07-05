@@ -1,6 +1,8 @@
-# Touchline Coach Premium Home + Logo Flat
+# Touchline Coach Premium Home PWA
 
-Nahraj do GitHubu všechny soubory v jedné rovině:
+Verze pro web i mobilní instalaci jako PWA.
+
+Nahraj celý obsah ZIPu do GitHubu:
 - index.html
 - package.json
 - README.md
@@ -8,5 +10,12 @@ Nahraj do GitHubu všechny soubory v jedné rovině:
 - main.js
 - style.css
 - zbiroh.png
+- manifest.webmanifest
+- sw.js
+- icons/icon-192.png
+- icons/icon-512.png
+- icons/apple-touch-icon.png
 
-Logo je jako soubor `zbiroh.png` vedle `index.html`.
+Po deployi:
+Android Chrome: menu ⋮ → Přidat na plochu / Instalovat aplikaci.
+iPhone Safari: Sdílet → Přidat na plochu.

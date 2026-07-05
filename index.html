@@ -69,6 +69,15 @@ body.home-premium #home{max-width:none}
 @media(max-width:760px){.homeGrid{grid-template-columns:1fr}.tcHero{min-height:310px}.clubHero h1{font-size:25px}.tcBrand .tcBig{font-size:42px}}
 
 </style>
+
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#46e26f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Touchline">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+
 </head>
 <body class="home-premium">
 <header>
@@ -602,6 +611,17 @@ restore();render();
     });
   });
 })();
+</script>
+
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('/sw.js').catch(function (err) {
+      console.log('Service worker registration failed:', err);
+    });
+  });
+}
 </script>
 
 </body>
