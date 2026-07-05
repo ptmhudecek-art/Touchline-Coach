@@ -70,15 +70,15 @@ body.home-premium #home{max-width:none}
 
 </style>
 
-<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=11">
-<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png?v=11">
-<link rel="manifest" href="/manifest.webmanifest?v=11">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=12">
+<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png?v=12">
+<link rel="manifest" href="/manifest.webmanifest?v=12">
 <meta name="theme-color" content="#46e26f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Touchline">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=11">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=12">
 
 </head>
 <body class="home-premium">
@@ -106,7 +106,7 @@ body.home-premium #home{max-width:none}
       <div class="coachPhoto" onclick="pickCoachPhoto()" title="Změnit fotku trenéra"><img id="coachPhotoImg" class="hidden" alt="Fotka trenéra"><span id="coachPhotoFallback">👤</span></div>
     </div>
     <div class="clubHero">
-      <img src="./zbiroh.png" alt="TJ Město Zbiroh">
+      <img src="/zbiroh.png" alt="TJ Město Zbiroh">
       <h1>TJ Město Zbiroh</h1>
       <div class="todayBadge" id="heroBadge">Dnes</div>
     </div>
@@ -619,7 +619,7 @@ restore();render();
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function () {
-    navigator.serviceWorker.register('/sw.js?v=11').catch(function (err) {
+    navigator.serviceWorker.register('/sw.js?v=12').catch(function (err) {
       console.log('Service worker registration failed:', err);
     });
   });

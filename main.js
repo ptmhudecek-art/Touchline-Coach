@@ -1,1 +1,1 @@
-// Touchline Coach v1.1: app is in index.html
+// Touchline Coach v1.2: aplikace běží v index.html

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'touchline-coach-v11';
+const CACHE_NAME = 'touchline-coach-v12';
 const ASSETS = [
   '/',
   '/index.html',
@@ -6,9 +6,6 @@ const ASSETS = [
   '/icon-192.png',
   '/icon-512.png',
   '/apple-touch-icon.png',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/icons/apple-touch-icon.png',
   '/zbiroh.png'
 ];
 
