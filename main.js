@@ -201,23 +201,24 @@ function renderSummary(){
 }
 
 function setEventType(type){
-  const eventType=document.getElementById('eventType')
-  const matchFields=document.getElementById('matchFields')
-  const planTitle=document.getElementById('planTitle')
-  const trBtn=document.getElementById('typeTraining')
-  const maBtn=document.getElementById('typeMatch')
-  if(!eventType||!matchFields||!planTitle||!trBtn||!maBtn)return
-  eventType.value=type
-  matchFields.classList.toggle('hidden', type!=='match')
-  planTitle.textContent=type==='match'?'Poznámky k utkání':'Plán tréninku'
-  trBtn.className=type==='training'?'btn':'btn2'
-  maBtn.className=type==='match'?'btn':'btn2'
+  const eventType = document.getElementById('eventType')
+  const matchFields = document.getElementById('matchFields')
+  const planTitle = document.getElementById('planTitle')
+  const typeTraining = document.getElementById('typeTraining')
+  const typeMatch = document.getElementById('typeMatch')
+  if(!eventType || !matchFields || !planTitle || !typeTraining || !typeMatch) return
+  eventType.value = type
+  matchFields.classList.toggle('hidden', type !== 'match')
+  planTitle.textContent = type === 'match' ? 'Poznámky k utkání' : 'Plán tréninku'
+  typeTraining.className = type === 'training' ? 'btn' : 'btn2'
+  typeMatch.className = type === 'match' ? 'btn' : 'btn2'
 }
+
 function wireEventTypeButtons(){
-  const trBtn=document.getElementById('typeTraining')
-  const maBtn=document.getElementById('typeMatch')
-  if(trBtn) trBtn.onclick=(e)=>{e.preventDefault();setEventType('training')}
-  if(maBtn) maBtn.onclick=(e)=>{e.preventDefault();setEventType('match')}
+  const typeTrainingBtn = document.getElementById('typeTraining')
+  const typeMatchBtn = document.getElementById('typeMatch')
+  if(typeTrainingBtn) typeTrainingBtn.onclick = (e) => { e.preventDefault(); setEventType('training') }
+  if(typeMatchBtn) typeMatchBtn.onclick = (e) => { e.preventDefault(); setEventType('match') }
 }
 
 function renderCal(){
@@ -244,11 +245,15 @@ function selectDay(date){
   wireEventTypeButtons()
   setEventType(currentType)
   renderBlocks(tr.id ? (blocksByTraining[tr.id]||[]) : [])
-}])}
+}
 function renderBlocks(b){let box=document.getElementById('blocks');box.innerHTML='';b.forEach((x,i)=>box.innerHTML+=`<div class=block><div class=blockLine><input class=bn value="${esc(x.title||'')}" placeholder="Část tréninku" onkeydown="if(event.key==='Enter'){event.preventDefault();addBlock()}"><input class=bm value="${esc(x.minutes||'')}" placeholder="20´"><button class=danger onclick="removeBlock(${i})">×</button></div></div>`)}
 function getBlocks(){let n=[...document.querySelectorAll('.bn')],m=[...document.querySelectorAll('.bm')];return n.map((x,i)=>({title:pretty(x.value),minutes:pretty(m[i].value),position:i})).filter(x=>x.title||x.minutes)}
 function addBlock(){let b=getBlocks();b.push({title:'',minutes:''});renderBlocks(b)}
-function removeBlock(i){let b=getBlocks();b.splice(i,1);renderBlocks(b)}
+function removeBlock(i){
+  let b=getBlocks()
+  b.splice(i,1)
+  renderBlocks(b)
+}
 async function saveTraining(){
   if(!selectedDate)return
 
@@ -289,7 +294,6 @@ async function saveTraining(){
   await reloadAll()
   selectDay(tr.training_date)
 }
-
 async function deleteTraining(){
   if(!selectedDate)return
   let old=trainings.find(t=>t.training_date===selectedDate)
@@ -302,11 +306,38 @@ async function deleteTraining(){
   document.getElementById('selTitle').textContent='Vyber den'
   await reloadAll()
 }
-
-function nearestTraining(){let today=iso(new Date());let list=trainings.filter(t=>(t.event_type||'training')==='training');return list.find(t=>t.training_date>=today)||list[list.length-1]}
-function nearestMatch(){let today=iso(new Date());let list=trainings.filter(t=>t.event_type==='match');return list.find(t=>t.training_date>=today)||list[list.length-1]}
-function renderHomeTraining(){let tr=nearestTraining(),info=document.getElementById('homeInfo'),box=document.getElementById('homeBlocks');if(!tr){info.textContent='Zatím není žádný trénink.';box.innerHTML='';renderMatchInfo();return}info.textContent=tr.training_date.split('-').reverse().join('.')+' • '+(tr.time_text||'čas nezadán')+' • '+(tr.place||'místo nezadáno');box.innerHTML=(blocksByTraining[tr.id]||[]).map(b=>`<div class=block><div class=space><b>${esc(b.title)}</b><span class="pill blue">${esc(b.minutes)}´</span></div></div>`).join('');renderMatchInfo()}
-function renderMatchInfo(){let m=nearestMatch(),el=document.getElementById('matchInfo');if(!el)return;if(!m){el.textContent='Zatím není zadané žádné utkání.';return}let venue=m.home_away==='away'?'venku':'doma';el.innerHTML=`${m.training_date.split('-').reverse().join('.')} • ${m.time_text||'čas nezadán'}<br><b>TJ Město Zbiroh ${venue}</b> vs ${esc(m.opponent||'soupeř nezadán')}<br>${esc(m.place||'místo nezadáno')}${m.meet_time?` • sraz ${esc(m.meet_time)}`:''}`}
+function nearestTraining(){
+  let today=iso(new Date())
+  let list=trainings.filter(t=>(t.event_type||'training')==='training')
+  return list.find(t=>t.training_date>=today)||list[list.length-1]
+}
+function nearestMatch(){
+  let today=iso(new Date())
+  let list=trainings.filter(t=>t.event_type==='match')
+  return list.find(t=>t.training_date>=today)||list[list.length-1]
+}
+function renderHomeTraining(){
+  let tr=nearestTraining(),info=document.getElementById('homeInfo'),box=document.getElementById('homeBlocks')
+  if(!tr){
+    info.textContent='Zatím není žádný trénink.'
+    box.innerHTML=''
+    renderMatchInfo()
+    return
+  }
+  info.textContent=tr.training_date.split('-').reverse().join('.')+' • '+(tr.time_text||'čas nezadán')+' • '+(tr.place||'místo nezadáno')
+  box.innerHTML=(blocksByTraining[tr.id]||[]).map(b=>`<div class=block><div class=space><b>${esc(b.title)}</b><span class="pill blue">${esc(b.minutes)}´</span></div></div>`).join('')
+  renderMatchInfo()
+}
+function renderMatchInfo(){
+  let m=nearestMatch(),el=document.getElementById('matchInfo')
+  if(!el)return
+  if(!m){
+    el.textContent='Zatím není zadané žádné utkání.'
+    return
+  }
+  let venue=m.home_away==='away'?'venku':'doma'
+  el.innerHTML=`${m.training_date.split('-').reverse().join('.')} • ${m.time_text||'čas nezadán'}<br><b>TJ Město Zbiroh ${venue}</b> vs ${esc(m.opponent||'soupeř nezadán')}<br>${esc(m.place||'místo nezadáno')}${m.meet_time?` • sraz ${esc(m.meet_time)}`:''}`
+}
 
 function renderVault(){let box=document.getElementById('folderList');if(!folders.length){box.innerHTML='<p class=small>Zatím žádné složky.</p>';return}box.innerHTML=folders.map(f=>`<div class=block><div class=space><b>📂 ${esc(f.name)}</b><button class=btn2 onclick="openFolder('${f.id}')">Otevřít</button></div></div>`).join('')}
 async function addFolder(){let name=pretty(document.getElementById('folderName').value);if(!name)return;await db.from('vault_folders').insert({club_id:club.id,name});document.getElementById('folderName').value='';await reloadAll()}
@@ -320,4 +351,5 @@ function renderStaff(){let box=document.getElementById('staffList');box.innerHTM
 async function addStaff(){let name=pretty(document.getElementById('staffName').value),role=document.getElementById('staffRole').value;if(!name)return;await db.from('staff').insert({club_id:club.id,team_id:currentTeam.id,name,role});document.getElementById('staffName').value='';await reloadAll()}
 async function deleteStaff(id){await db.from('staff').delete().eq('id',id);await reloadAll()}
 
+wireEventTypeButtons()
 init()
