@@ -1,13 +1,12 @@
-# Touchline Coach Premium Home
+# Touchline Coach Premium Home + Logo Flat
 
-Stabilní webová verze pro Vercel.
+Nahraj do GitHubu všechny soubory v jedné rovině:
+- index.html
+- package.json
+- README.md
+- .gitignore
+- main.js
+- style.css
+- zbiroh.png
 
-Obsah:
-- funkční BASIC STABLE základ
-- nový grafický Home
-- znak TJ Město Zbiroh vložený přímo v index.html
-- profilová fotka trenéra lokálně v zařízení
-- bez pevné Aktivace 20
-- při smazání tréninku se smaže docházka
-
-Nahraj všech 6 souborů do GitHubu.
+Logo je jako soubor `zbiroh.png` vedle `index.html`.
