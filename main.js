@@ -1,1 +1,1 @@
-// Touchline Coach BASIC STABLE: aplikace je v index.html
+// Touchline Coach Premium Home: aplikace je v index.html
