@@ -44,8 +44,8 @@ document.querySelector('#app').innerHTML = `<header>
       <div class="card" style="background:#11141a">
         <h3>Typ události</h3>
         <div class="row">
-          <button type="button" class="btn" id="typeTraining">Trénink</button>
-          <button type="button" class="btn2" id="typeMatch">Utkání</button>
+          <button type="button" class="btn" id="typeTraining" onclick="window.setEventType('training')">Trénink</button>
+          <button type="button" class="btn2" id="typeMatch" onclick="window.setEventType('match')">Utkání</button>
         </div>
         <input id="eventType" type="hidden" value="training">
         <div id="matchFields" class="hidden" style="margin-top:10px">
@@ -292,6 +292,7 @@ async function saveTraining(){
   }
 
   await reloadAll()
+  alert('Uloženo')
   selectDay(tr.training_date)
 }
 async function deleteTraining(){
@@ -352,4 +353,9 @@ async function addStaff(){let name=pretty(document.getElementById('staffName').v
 async function deleteStaff(id){await db.from('staff').delete().eq('id',id);await reloadAll()}
 
 wireEventTypeButtons()
+
+window.setEventType = setEventType
+window.saveTraining = saveTraining
+window.deleteTraining = deleteTraining
+window.addBlock = addBlock
 init()
