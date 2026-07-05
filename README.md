@@ -1,16 +1,15 @@
-# Touchline Coach Online
+# Touchline Coach BASIC STABLE
 
-Plochý projekt pro GitHub web upload.
+Stabilní webová verze pro Vercel.
 
-Nahraj všechny soubory:
-- index.html
-- main.js
-- style.css
-- package.json
-- README.md
-- .gitignore
+Obsah:
+- funkční trénink
+- kalendář
+- docházka
+- hráči
+- Trezor
+- RT
+- bez pevné Aktivace 20
+- při smazání tréninku se smaže docházka
 
-Vercel:
-- Framework preset: Vite
-- Build command: npm run build
-- Output directory: dist
+Nahraj všech 6 souborů do GitHubu.

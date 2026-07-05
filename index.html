@@ -1,13 +1,524 @@
 <!doctype html>
 <html lang="cs">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Touchline Coach</title>
-  <link rel="stylesheet" href="/style.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Touchline Coach stabilní</title>
+<style>
+:root{--bg:#0f1115;--card:#181b22;--text:#f3f5f7;--muted:#9aa3ad;--green:#46e26f;--red:#ff5d5d;--yellow:#ffd166;--blue:#4da3ff;--border:#2b303b}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif}
+header{padding:16px;background:#12151b;border-bottom:1px solid var(--border)}
+.logo{font-size:22px;font-weight:800;color:var(--green)}
+.sub,.small{color:var(--muted);font-size:13px}
+main{max-width:900px;margin:0 auto;padding:14px 14px 82px}
+.page{display:none}.page.active{display:block}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px;margin:12px 0}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.space{display:flex;justify-content:space-between;gap:10px;align-items:center}
+input,textarea{width:100%;background:#0d0f13;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:16px}
+textarea{min-height:110px}
+button{border:0;border-radius:10px;padding:10px 12px;font-weight:700}
+.btn{background:var(--green);color:#08100a}.btn2{background:#20242d;color:var(--text);border:1px solid var(--border)}.danger{background:var(--red);color:white}
+.pill{display:inline-block;padding:6px 10px;border-radius:999px;font-size:13px;font-weight:700}
+.green{background:rgba(70,226,111,.18);color:var(--green)}.red{background:rgba(255,93,93,.18);color:var(--red)}.yellow{background:rgba(255,209,102,.18);color:var(--yellow)}.gray{background:#2a2f39;color:#c8ced6}.blue{background:rgba(77,163,255,.18);color:var(--blue)}
+nav{position:fixed;left:0;right:0;bottom:0;background:#151922;border-top:1px solid var(--border);display:flex;z-index:9999}
+nav button{flex:1;border-radius:0;background:transparent;color:var(--muted);padding:13px 2px;font-size:12px}
+nav button.active{background:var(--green);color:#08100a}
+.calendar{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.day,.head{min-height:42px;text-align:left}.head{color:var(--muted);font-size:12px;text-align:center;padding:5px}
+.day{background:#11141a;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:7px;font-weight:700;position:relative}
+.day.has{border-color:var(--blue)}.day.today{outline:2px solid var(--green)}
+.dot{position:absolute;right:7px;bottom:7px;width:8px;height:8px;background:var(--blue);border-radius:50%}
+.block{background:#11141a;border:1px solid var(--border);border-radius:14px;padding:10px;margin:8px 0}
+.blockLine{display:grid;grid-template-columns:1fr 80px 42px;gap:8px}
+.player{border-bottom:1px solid var(--border);padding:10px 0}.player:last-child{border-bottom:0}
+.mediaIcons{display:flex;gap:8px;margin-top:8px}.iconBtn{background:#20242d;color:white;border:1px solid var(--border);font-size:18px;padding:6px 9px}
+.hidden{display:none}
+table{width:100%;border-collapse:collapse}td,th{border-bottom:1px solid var(--border);padding:8px;text-align:left}code{background:#333;padding:2px 4px}
+</style>
 </head>
 <body>
-  <div id="app"></div>
-  <script type="module" src="/main.js"></script>
+<header>
+  <div class="logo">Touchline Coach</div>
+  <div class="sub">TJ Město Zbiroh</div>
+  <div class="row" style="margin-top:10px">
+    <select id="teamSelect" onchange="selectTeam(this.value)" style="flex:1;background:#0d0f13;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:16px"></select>
+    <button class="btn2" onclick="showAddTeam()">+ tým</button>
+  </div>
+  <div id="addTeamBox" class="hidden" style="margin-top:10px">
+    <div class="row">
+      <input id="newTeamName" placeholder="Nový tým, např. U19">
+      <button class="btn" onclick="addTeam()">Přidat tým</button>
+    </div>
+  </div>
+</header>
+
+<main>
+<section id="home" class="page active">
+  <div class="card" onclick="toggleDetail()">
+    <div class="space"><div><div class="logo" style="font-size:20px">TJ Město Zbiroh</div><div class="small" id="currentTeamLabel">TJ Město Zbiroh</div></div><span class="pill green">Trénink</span></div>
+    <h2>Nejbližší trénink</h2>
+    <div id="homeInfo" class="small">Zatím není žádný trénink.</div>
+    <div class="row" style="margin-top:12px"><span id="hYes" class="pill green">0 přijde</span><span id="hExc" class="pill red">0 omluveno</span><span id="hNone" class="pill gray">0 bez reakce</span></div>
+    <p class="small">Klikni pro detail.</p>
+  </div>
+  <div id="homeDetail" class="hidden">
+    <div class="card"><h3>Obsah tréninku</h3><div id="homeBlocks"></div><div id="playerBox" class="card hidden" style="background:#11141a"><h3 id="mediaTitle">Video</h3><video id="videoPlayer" controls playsinline style="width:100%;border-radius:12px;background:#000"></video><button class="btn2" onclick="closeVideo()">Zavřít video</button></div></div>
+    <div class="card"><h3>Přehled docházky</h3><div class="row"><span id="sumYes" class="pill green">0 Přijde</span><span id="sumInj" class="pill red">0 Zranění</span><span id="sumWork" class="pill yellow">0 Práce/škola</span><span id="sumOther" class="pill gray">0 Ostatní</span><span id="sumNone" class="pill gray">0 Bez odpovědi</span></div></div>
+  </div>
+</section>
+
+<section id="calendar" class="page">
+  <div class="card"><div class="space"><button class="btn2" onclick="moveMonth(-1)">‹</button><h3 id="monthTitle"></h3><button class="btn2" onclick="moveMonth(1)">›</button></div><div id="cal" class="calendar"></div></div>
+  <div class="card"><h2 id="selTitle">Vyber den</h2>
+    <div id="editor" class="hidden">
+      <div class="row"><input id="trTime" placeholder="Čas 18:00–19:30"><input id="trPlace" placeholder="Místo"></div>
+      <div class="card" style="background:#11141a">
+        <h3>Přehled tréninku</h3>
+        <p class="small">Vlož PDF nebo fotku nákresu z papíru.</p>
+        <input id="pdfFile" type="file" accept="application/pdf">
+        <div class="row">
+          <button class="btn2" onclick="savePdf()">Uložit PDF</button>
+          <button class="btn2" onclick="openPdf()">Otevřít PDF</button>
+          <button class="danger" onclick="deletePdf()">Smazat PDF</button>
+        </div>
+        <div id="pdfState" class="small"></div>
+        <hr style="border:0;border-top:1px solid var(--border);margin:12px 0">
+        <input id="photoFile" type="file" accept="image/*" capture="environment">
+        <div class="row">
+          <button class="btn2" onclick="savePhoto()">Uložit foto</button>
+          <button class="btn2" onclick="openPhoto()">Otevřít foto</button>
+          <button class="danger" onclick="deletePhoto()">Smazat foto</button>
+        </div>
+        <div id="photoState" class="small"></div>
+      </div>
+      <h3>Plán tréninku</h3><p class="small">Enter přidá další blok.</p><div id="blocks"></div>
+      <div class="row"><button class="btn" onclick="addBlock()">Přidat blok</button><button class="btn" onclick="saveTraining()">Uložit trénink</button><button class="danger" onclick="deleteTraining()">Smazat trénink</button></div>
+    </div>
+  </div>
+</section>
+
+<section id="team" class="page">
+  <div class="card"><h2>Tým</h2><div class="small">Hráči: <b id="playerCount">0</b></div></div>
+  <div class="card"><h3>Přidat hráče</h3><div class="row"><input id="onePlayer" placeholder="Příjmení Jméno"><button class="btn" onclick="addOne()">Přidat</button></div></div>
+  <div class="card"><h3>Import z Excelu</h3><textarea id="bulkPlayers" placeholder="Novák Petr&#10;Svoboda Martin"></textarea><div class="row"><input id="teamCode" value="ZBIROH25" style="max-width:170px"><button class="btn" onclick="importPlayers()">Importovat</button></div></div>
+  <div class="card"><h3>Seznam hráčů</h3><div id="playersTable"></div><button class="btn2" onclick="copyCodes()">Kopírovat kódy</button><pre id="copyBox" class="small"></pre></div>
+</section>
+
+<section id="attendance" class="page"><div class="card"><h2>Docházka</h2><div id="attendanceList"></div></div></section>
+
+<section id="login" class="page">
+  <div class="card"><h2>Hráč</h2><input id="loginName" placeholder="Příjmení Jméno"><input id="loginSecret" placeholder="Kód nebo PIN"><label class="small"><input type="checkbox" id="stay" style="width:auto"> Zůstat přihlášen</label><div class="row"><button class="btn" onclick="playerLogin()">Přihlásit</button><button class="btn2" onclick="playerLogout()">Odhlásit</button></div><div id="loginMsg" class="small"></div></div>
+  <div id="pinSetup" class="card hidden"><h3>Nastavit PIN</h3><input id="pin1" maxlength="4" placeholder="PIN"><input id="pin2" maxlength="4" placeholder="PIN znovu"><button class="btn" onclick="savePin()">Uložit PIN</button></div>
+  <div id="playerPanel" class="card hidden"></div>
+</section>
+
+<section id="vault" class="page">
+  <div class="card">
+    <h2>🔒 Trezor</h2>
+    <p class="small">Týmový prostor pro složky cvičení.</p>
+    <div class="row">
+      <input id="drawerName" placeholder="Nová složka, např. Zakončení">
+      <button class="btn" onclick="addDrawer()">Přidat složku</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Složky</h3>
+    <div id="drawerList"></div>
+  </div>
+
+  <div id="exerciseBox" class="card hidden">
+    <div class="space">
+      <h3 id="activeDrawerTitle">Složka</h3>
+      <button class="btn2" onclick="closeDrawer()">Zavřít</button>
+    </div>
+
+    <div class="card" style="background:#11141a">
+      <h3>Nové cvičení</h3>
+      <input id="exerciseName" placeholder="Název cvičení">
+      <div style="height:8px"></div>
+      <input id="exercisePhoto" type="file" accept="image/*" capture="environment">
+      <div class="small">Fotka nákresu nebo situace.</div>
+      <div style="height:8px"></div>
+      <input id="exerciseVideo" type="file" accept="video/mp4">
+      <div class="small">Krátké MP4 video.</div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn" onclick="saveExercise()">Uložit cvičení</button>
+      </div>
+    </div>
+
+    <h3>Cvičení ve složce</h3>
+    <div id="exerciseList"></div>
+  </div>
+</section>
+
+<section id="staff" class="page">
+  <div class="card">
+    <h2>RT</h2>
+    <p class="small">Realizační tým. Neřeší svoji docházku, jen vidí trénink a podle role může upravovat.</p>
+    <div class="row">
+      <input id="staffName" placeholder="Jméno člena RT">
+      <select id="staffRole" style="background:#0d0f13;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px">
+        <option value="admin">Administrátor</option>
+        <option value="coach">Trenér - může upravovat</option>
+        <option value="view">RT - pouze náhled</option>
+      </select>
+      <button class="btn" onclick="addStaff()">Přidat</button>
+    </div>
+  </div>
+  <div class="card">
+    <h3>Členové a práva</h3>
+    <div id="staffList"></div>
+  </div>
+</section>
+
+</main>
+
+<nav>
+<button id="nav-home" class="active" onclick="tab('home')">Home</button>
+<button id="nav-calendar" onclick="tab('calendar')">Kalendář</button>
+<button id="nav-team" onclick="tab('team')">Tým</button>
+<button id="nav-attendance" onclick="tab('attendance')">Docházka</button>
+<button id="nav-login" onclick="tab('login')">Hráč</button>
+<button id="nav-vault" onclick="tab('vault')">Trezor</button>
+<button id="nav-staff" onclick="tab('staff')">RT</button>
+</nav>
+
+<script>
+const LP="tc_players_v05", LA="tc_attendance_v05", LT="tc_trainings_v08", LL="tc_logged_player_stable", LD="tc_vault_drawers_v01", LS="tc_staff_v01", LE="tc_vault_exercises_v01", LTEAM="tc_teams_v01", LCURTEAM="tc_current_team_v01";
+let viewDate=new Date(), selectedDate=null, currentPlayerId=null;
+
+function tab(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));document.getElementById('nav-'+id).classList.add('active');render();}
+function toggleDetail(){document.getElementById('homeDetail').classList.toggle('hidden');}
+function load(k,def){return JSON.parse(localStorage.getItem(k)||JSON.stringify(def))}
+function save(k,v){localStorage.setItem(k,JSON.stringify(v))}
+function players(){return load(LP,[])} function setPlayers(v){save(LP,v)}
+function att(){return load(LA,{})} function setAttObj(v){save(LA,v)}
+function trs(){return load(LT,{})} function setTrs(v){save(LT,v)}
+function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+function pretty(s){return String(s).trim().replace(/\s+/g,' ')} function norm(s){return pretty(s).toLowerCase()}
+function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function code4(){let c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',s='';for(let i=0;i<4;i++)s+=c[Math.floor(Math.random()*c.length)];return s}
+
+const DB='tc_media_db_v01', STORE='files';
+function db(){return new Promise((res,rej)=>{let r=indexedDB.open(DB,1);r.onupgradeneeded=e=>e.target.result.createObjectStore(STORE);r.onsuccess=e=>res(e.target.result);r.onerror=e=>rej(e.target.error)})}
+async function putFile(k,f){let d=await db();return new Promise((res,rej)=>{let t=d.transaction(STORE,'readwrite');t.objectStore(STORE).put(f,k);t.oncomplete=res;t.onerror=e=>rej(e.target.error)})}
+async function getFile(k){let d=await db();return new Promise((res,rej)=>{let t=d.transaction(STORE,'readonly'),r=t.objectStore(STORE).get(k);r.onsuccess=e=>res(e.target.result);r.onerror=e=>rej(e.target.error)})}
+async function delFile(k){let d=await db();return new Promise((res,rej)=>{let t=d.transaction(STORE,'readwrite');t.objectStore(STORE).delete(k);t.oncomplete=res;t.onerror=e=>rej(e.target.error)})}
+function pdfKey(){return 'pdf_'+selectedDate} function photoKey(){return 'photo_'+selectedDate} function vidKey(i){return 'video_'+selectedDate+'_'+i}
+
+function addOne(){let n=pretty(document.getElementById('onePlayer').value);if(!n)return;let p=players();p.push({id:Date.now()+'_'+Math.random().toString(16).slice(2),name:n,code:'ZBIROH25-'+code4(),pin:''});setPlayers(p);document.getElementById('onePlayer').value='';render()}
+function importPlayers(){let rows=document.getElementById('bulkPlayers').value.split(/\n+/).map(pretty).filter(Boolean),tc=document.getElementById('teamCode').value||'ZBIROH25',p=players();rows.forEach(n=>p.push({id:Date.now()+'_'+Math.random().toString(16).slice(2),name:n,code:tc+'-'+code4(),pin:''}));setPlayers(p);document.getElementById('bulkPlayers').value='';render()}
+function removePlayer(id){setPlayers(players().filter(p=>p.id!==id));let a=att();delete a[id];setAttObj(a);render()}
+function resetPin(id){let p=players(),x=p.find(y=>y.id===id);if(x)x.pin='';setPlayers(p);render()}
+function copyCodes(){document.getElementById('copyBox').textContent=players().map(p=>p.name+' | '+p.code).join('\n');navigator.clipboard.writeText(document.getElementById('copyBox').textContent)}
+
+function label(v){return {yes:'Přijde',injury:'Zranění',work:'Práce/škola',other:'Ostatní',none:'Bez odpovědi'}[v||'none']}
+function cls(v){return v==='yes'?'green':v==='injury'?'red':v==='work'?'yellow':'gray'}
+function setAttendance(id,v){let a=att();a[id]=v;setAttObj(a);render()}
+
+function renderPlayers(){let p=players();document.getElementById('playerCount').textContent=p.length;if(!p.length){document.getElementById('playersTable').innerHTML='<p class=small>Zatím žádní hráči.</p>';return}let h='<table><tr><th>Hráč</th><th>Kód</th><th>PIN</th><th></th></tr>';p.forEach(x=>h+=`<tr><td>${esc(x.name)}</td><td><code>${esc(x.code)}</code></td><td>${x.pin?'🟢 nastaven':'⚪ není'}</td><td><button class=btn2 onclick="resetPin('${x.id}')">Reset PIN</button> <button class=danger onclick="removePlayer('${x.id}')">Smazat</button></td></tr>`);document.getElementById('playersTable').innerHTML=h+'</table>'}
+function renderAttendance(){let p=players(),a=att();if(!p.length){document.getElementById('attendanceList').innerHTML='<p class=small>Nejdřív vlož hráče.</p>';return}let h='';p.forEach(x=>{let v=a[x.id]||'none';h+=`<div class=player><div class=space><b>${esc(x.name)}</b><span class="pill ${cls(v)}">${label(v)}</span></div><div class=row style="margin-top:8px"><button class=btn2 onclick="setAttendance('${x.id}','yes')">✅ Přijde</button><button class=btn2 onclick="setAttendance('${x.id}','injury')">✚ Zranění</button><button class=btn2 onclick="setAttendance('${x.id}','work')">💼 Práce/škola</button><button class=btn2 onclick="setAttendance('${x.id}','other')">● Ostatní</button><button class=btn2 onclick="setAttendance('${x.id}','none')">○ Bez odpovědi</button></div></div>`});document.getElementById('attendanceList').innerHTML=h}
+function renderSummary(){let s={yes:0,injury:0,work:0,other:0,none:0},a=att();players().forEach(p=>s[a[p.id]||'none']++);let exc=s.injury+s.work+s.other;[['sumYes',s.yes+' Přijde'],['sumInj',s.injury+' Zranění'],['sumWork',s.work+' Práce/škola'],['sumOther',s.other+' Ostatní'],['sumNone',s.none+' Bez odpovědi'],['hYes',s.yes+' přijde'],['hExc',exc+' omluveno'],['hNone',s.none+' bez reakce']].forEach(x=>{let e=document.getElementById(x[0]);if(e)e.textContent=x[1]})}
+
+function renderCal(){let grid=document.getElementById('cal');grid.innerHTML='';let months=['leden','únor','březen','duben','květen','červen','červenec','srpen','září','říjen','listopad','prosinec'];document.getElementById('monthTitle').textContent=months[viewDate.getMonth()]+' '+viewDate.getFullYear();['Po','Út','St','Čt','Pá','So','Ne'].forEach(d=>grid.innerHTML+='<div class=head>'+d+'</div>');let y=viewDate.getFullYear(),m=viewDate.getMonth(),first=new Date(y,m,1),start=(first.getDay()+6)%7,days=new Date(y,m+1,0).getDate(),t=trs(),today=iso(new Date());for(let i=0;i<start;i++)grid.innerHTML+='<div></div>';for(let d=1;d<=days;d++){let date=iso(new Date(y,m,d));grid.innerHTML+=`<button class="day ${t[date]?'has':''} ${date===today?'today':''}" onclick="selectDay('${date}')">${d}${t[date]?'<span class=dot></span>':''}</button>`}}
+function moveMonth(n){viewDate=new Date(viewDate.getFullYear(),viewDate.getMonth()+n,1);renderCal()}
+function selectDay(date){selectedDate=date;document.getElementById('selTitle').textContent='Trénink '+date.split('-').reverse().join('.');document.getElementById('editor').classList.remove('hidden');let t=trs()[date]||{time:'',place:'',blocks:[]};document.getElementById('trTime').value=t.time||'';document.getElementById('trPlace').value=t.place||'';renderBlocks(t.blocks||[]);setTimeout(()=>{updatePdfState();updatePhotoState();updateVideoStates()},50)}
+function renderBlocks(b){let box=document.getElementById('blocks');box.innerHTML='';b.forEach((x,i)=>box.innerHTML+=`<div class=block><div class=blockLine><input class=bn value="${esc(x.name||'')}" placeholder="Část tréninku" onkeydown="if(event.key==='Enter'){event.preventDefault();addBlock()}"><input class=bm value="${esc(x.min||'')}" placeholder="20´"><button class=danger onclick="removeBlock(${i})">×</button></div><div class=row style="margin-top:8px"><input class=bv type=file accept="video/mp4" data-i="${i}" style="max-width:260px"><button class=btn2 onclick="saveVideo(${i})">Uložit MP4</button><button class=btn2 onclick="playVideo(${i})">Přehrát</button><button class=danger onclick="deleteVideo(${i})">Smazat</button><span class=small id="vs_${i}">MP4 nevloženo</span></div></div>`)}
+function getBlocks(){let n=[...document.querySelectorAll('.bn')],m=[...document.querySelectorAll('.bm')];return n.map((x,i)=>({name:pretty(x.value),min:pretty(m[i].value)})).filter(x=>x.name||x.min)}
+function addBlock(){let b=getBlocks();b.push({name:'',min:''});renderBlocks(b)}
+function removeBlock(i){let b=getBlocks();b.splice(i,1);renderBlocks(b)}
+function saveTraining(){if(!selectedDate)return;let t=trs();t[selectedDate]={time:document.getElementById('trTime').value,place:document.getElementById('trPlace').value,blocks:getBlocks()};setTrs(t);render()}
+function deleteTraining(){
+  if(!selectedDate)return;
+  let t=trs();
+  delete t[selectedDate];
+  setTrs(t);
+
+  // Smazaný trénink = žádná docházka k tréninku.
+  // V téhle BASIC verzi je docházka společná pro aktuální trénink, takže ji vynulujeme.
+  setAttObj({});
+
+  document.getElementById('editor').classList.add('hidden');
+  selectedDate=null;
+  render();
+}
+
+
+async function savePhoto(){
+  if(!selectedDate)return alert('Vyber den.');
+  let f=document.getElementById('photoFile').files[0];
+  if(!f)return alert('Vyber fotku.');
+  await putFile(photoKey(),f);
+  await updatePhotoState();
+  render();
+}
+async function openPhoto(){
+  let f=await getFile(photoKey());
+  if(!f)return alert('Foto není vložené.');
+  openImageFile(f,'Foto nákresu');
+}
+async function deletePhoto(){
+  await delFile(photoKey());
+  let inp=document.getElementById('photoFile');
+  if(inp)inp.value='';
+  await updatePhotoState();
+  render();
+}
+async function updatePhotoState(){
+  let e=document.getElementById('photoState');
+  if(!e||!selectedDate)return;
+  let f=await getFile(photoKey());
+  e.textContent=f?'Foto uložené: '+f.name:'Foto zatím není vložené.';
+}
+function openImageFile(f,title){
+  tab('home');
+  document.getElementById('homeDetail').classList.remove('hidden');
+  let box=document.getElementById('playerBox');
+  box.classList.remove('hidden');
+  box.innerHTML=`<h3>${title}</h3><img src="${URL.createObjectURL(f)}" style="width:100%;border-radius:12px;background:#000"><button class="btn2" onclick="document.getElementById('playerBox').classList.add('hidden')">Zavřít foto</button>`;
+}
+
+async function savePdf(){if(!selectedDate)return alert('Vyber den.');let f=document.getElementById('pdfFile').files[0];if(!f)return alert('Vyber PDF.');await putFile(pdfKey(),f);await updatePdfState();render()}
+async function openPdf(){let f=await getFile(pdfKey());if(!f)return alert('PDF není vložené.');window.open(URL.createObjectURL(f),'_blank')}
+async function deletePdf(){await delFile(pdfKey());updatePdfState();render()}
+async function updatePdfState(){let e=document.getElementById('pdfState');if(!e||!selectedDate)return;let f=await getFile(pdfKey());e.textContent=f?'PDF uložené: '+f.name:'PDF zatím není vložené.'}
+async function saveVideo(i){if(!selectedDate)return alert('Vyber den.');let inp=document.querySelector('.bv[data-i="'+i+'"]'),f=inp&&inp.files[0];if(!f)return alert('Vyber MP4.');await putFile('video_'+selectedDate+'_'+i,f);await updateVideoStates();render()}
+async function playVideo(i){if(!selectedDate)return;let f=await getFile('video_'+selectedDate+'_'+i);if(!f)return alert('MP4 není vložené.');playFile(f,'Video ke cvičení')}
+async function deleteVideo(i){await delFile('video_'+selectedDate+'_'+i);updateVideoStates();render()}
+async function updateVideoStates(){if(!selectedDate)return;for(let e of document.querySelectorAll('[id^=vs_]')){let i=e.id.split('_')[1],f=await getFile('video_'+selectedDate+'_'+i);e.textContent=f?'✓ MP4 uložené: '+f.name:'MP4 nevloženo'}}
+
+async function renderHomeTraining(){let t=trs(),today=iso(new Date()),key=today;if(!t[key]){let keys=Object.keys(t).sort();key=keys.find(k=>k>=today)||keys[keys.length-1]}let info=document.getElementById('homeInfo'),box=document.getElementById('homeBlocks');if(!key||!t[key]){info.textContent='Zatím není žádný trénink.';box.innerHTML='';return}let tr=t[key];info.textContent=key.split('-').reverse().join('.')+' • '+(tr.time||'čas nezadán')+' • '+(tr.place||'místo nezadáno');let out='';let pdf=await getFile('pdf_'+key);let photo=await getFile('photo_'+key);let topIcons='';if(pdf)topIcons+=`<button class=iconBtn onclick="openHomePdf('${key}')">📄</button>`;if(photo)topIcons+=`<button class=iconBtn onclick="openHomePhoto('${key}')">🖼️</button>`;if(topIcons)out+=`<div class=mediaIcons>${topIcons}</div>`;for(let i=0;i<(tr.blocks||[]).length;i++){let b=tr.blocks[i],v=await getFile('video_'+key+'_'+i);out+=`<div class=block><div class=space><b>${esc(b.name)}</b><span class="pill blue">${esc(b.min)}´</span></div>${v?`<div class=mediaIcons><button class=iconBtn onclick="openHomeVideo('${key}',${i})">🎥</button></div>`:''}</div>`}box.innerHTML=out}
+async function openHomePdf(k){let f=await getFile('pdf_'+k);if(!f)return alert('PDF není vložené.');window.open(URL.createObjectURL(f),'_blank')}
+async function openHomePhoto(k){let f=await getFile('photo_'+k);if(!f)return alert('Foto není vložené.');openImageFile(f,'Foto nákresu')}
+async function openHomeVideo(k,i){let f=await getFile('video_'+k+'_'+i);if(!f)return alert('MP4 není vložené.');playFile(f,'Video ke cvičení')}
+function playFile(f,title){tab('home');document.getElementById('homeDetail').classList.remove('hidden');let box=document.getElementById('playerBox'),v=document.getElementById('videoPlayer'),ttl=document.getElementById('mediaTitle');if(v.dataset.url)URL.revokeObjectURL(v.dataset.url);let url=URL.createObjectURL(f);v.dataset.url=url;v.src=url;ttl.textContent=title;box.classList.remove('hidden');v.load();v.play().catch(()=>{});box.scrollIntoView({behavior:'smooth'})}
+function closeVideo(){let box=document.getElementById('playerBox'),v=document.getElementById('videoPlayer');v.pause();if(v.dataset.url)URL.revokeObjectURL(v.dataset.url);v.removeAttribute('src');box.classList.add('hidden')}
+
+function playerLogin(){let name=norm(document.getElementById('loginName').value),sec=document.getElementById('loginSecret').value.trim(),p=players().find(x=>norm(x.name)===name);if(!p){msg('Hráč nenalezen.');return}if(p.pin){if(sec!==p.pin){msg('Špatný PIN.');return}}else{if(sec.toUpperCase()!==String(p.code).toUpperCase()){msg('Špatný kód.');return}}currentPlayerId=p.id;if(document.getElementById('stay').checked)localStorage.setItem(LL,p.id);else localStorage.removeItem(LL);msg('Přihlášeno.');render()}
+function msg(t){document.getElementById('loginMsg').textContent=t}
+function playerLogout(){currentPlayerId=null;localStorage.removeItem(LL);document.getElementById('playerPanel').classList.add('hidden');document.getElementById('pinSetup').classList.add('hidden');msg('Odhlášeno.')}
+function savePin(){let a=document.getElementById('pin1').value.trim(),b=document.getElementById('pin2').value.trim();if(!/^\d{4}$/.test(a))return msg('PIN musí mít 4 čísla.');if(a!==b)return msg('PINy nesedí.');let p=players(),x=p.find(y=>y.id===currentPlayerId);if(x){x.pin=a;setPlayers(p);msg('PIN uložen.');render()}}
+function renderPlayerPanel(){let p=players().find(x=>x.id===currentPlayerId),pan=document.getElementById('playerPanel'),pin=document.getElementById('pinSetup');if(!p){pan.classList.add('hidden');pin.classList.add('hidden');return}pin.classList.toggle('hidden',!!p.pin);let v=att()[p.id]||'none';pan.classList.remove('hidden');pan.innerHTML=`<div class=playerHome>${esc(p.name)}</div><p>Stav: <span class="pill ${cls(v)}">${label(v)}</span></p><div class=row><button class=btn2 onclick="setAttendance('${p.id}','yes')">✅ Přijdu</button><button class=btn2 onclick="setAttendance('${p.id}','injury')">✚ Zranění</button><button class=btn2 onclick="setAttendance('${p.id}','work')">💼 Práce/škola</button><button class=btn2 onclick="setAttendance('${p.id}','other')">● Ostatní</button></div>`}
+
+
+
+function teams(){
+  let t=load(LTEAM,null);
+  if(!t){
+    t=["TJ Město Zbiroh"];
+    save(LTEAM,t);
+    localStorage.setItem(LCURTEAM,"TJ Město Zbiroh");
+  }
+  return t;
+}
+function currentTeam(){
+  let c=localStorage.getItem(LCURTEAM);
+  if(!c){
+    c=teams()[0];
+    localStorage.setItem(LCURTEAM,c);
+  }
+  return c;
+}
+function selectTeam(t){
+  localStorage.setItem(LCURTEAM,t);
+  renderTeams();
+}
+function showAddTeam(){
+  let b=document.getElementById("addTeamBox");
+  if(b)b.classList.toggle("hidden");
+}
+function addTeam(){
+  let n=pretty(document.getElementById("newTeamName").value);
+  if(!n)return;
+  let full=n.startsWith("TJ Město Zbiroh") ? n : "TJ Město Zbiroh "+n;
+  let t=teams();
+  if(!t.includes(full))t.push(full);
+  save(LTEAM,t);
+  localStorage.setItem(LCURTEAM,full);
+  document.getElementById("newTeamName").value="";
+  document.getElementById("addTeamBox").classList.add("hidden");
+  renderTeams();
+}
+function renderTeams(){
+  let sel=document.getElementById("teamSelect");
+  if(!sel)return;
+  let t=teams();
+  let c=currentTeam();
+  sel.innerHTML=t.map(x=>`<option value="${esc(x)}" ${x===c?"selected":""}>${esc(x)}</option>`).join("");
+  let lab=document.getElementById("currentTeamLabel");
+  if(lab)lab.textContent=c;
+}
+
+let activeDrawerIndex=null;
+
+function drawers(){
+  let d=load(LD,null);
+  if(!d){
+    d=["Aktivace","Bagovky","Dovednosti","Zakončení","Hry"];
+    save(LD,d);
+  }
+  return d;
+}
+function setDrawers(d){save(LD,d)}
+function exercises(){return load(LE,{})}
+function setExercises(e){save(LE,e)}
+
+function addDrawer(){
+  let n=pretty(document.getElementById("drawerName").value);
+  if(!n)return;
+  let d=drawers();
+  d.push(n);
+  setDrawers(d);
+  document.getElementById("drawerName").value="";
+  renderVault();
+}
+function deleteDrawer(i){
+  if(!confirm("Smazat složku? Cvičení v ní zůstanou v datech, ale nebude vidět."))return;
+  let d=drawers();
+  d.splice(i,1);
+  setDrawers(d);
+  if(activeDrawerIndex===i)closeDrawer();
+  renderVault();
+}
+function openDrawer(i){
+  activeDrawerIndex=i;
+  document.getElementById("exerciseBox").classList.remove("hidden");
+  renderExercises();
+}
+function closeDrawer(){
+  activeDrawerIndex=null;
+  document.getElementById("exerciseBox").classList.add("hidden");
+}
+function renderVault(){
+  let box=document.getElementById("drawerList");
+  if(!box)return;
+  let d=drawers();
+  if(!d.length){box.innerHTML="<p class=small>Zatím žádné složky.</p>";return}
+  box.innerHTML=d.map((x,i)=>`<div class=block><div class=space><b>📂 ${esc(x)}</b><div class=row><button class=btn2 onclick="openDrawer(${i})">Otevřít</button><button class=danger onclick="deleteDrawer(${i})">×</button></div></div></div>`).join("");
+  if(activeDrawerIndex!==null)renderExercises();
+}
+async function saveExercise(){
+  if(activeDrawerIndex===null)return;
+  let name=pretty(document.getElementById("exerciseName").value);
+  if(!name)return alert("Zadej název cvičení.");
+  let id=Date.now()+"_"+Math.random().toString(16).slice(2);
+  let d=drawers();
+  let drawer=d[activeDrawerIndex];
+  let ex=exercises();
+  if(!ex[drawer])ex[drawer]=[];
+  let item={id:id,name:name,hasPhoto:false,hasVideo:false};
+  let photo=document.getElementById("exercisePhoto").files[0];
+  let video=document.getElementById("exerciseVideo").files[0];
+  if(photo){await putFile("exercise_photo_"+id,photo);item.hasPhoto=true;}
+  if(video){await putFile("exercise_video_"+id,video);item.hasVideo=true;}
+  ex[drawer].push(item);
+  setExercises(ex);
+  document.getElementById("exerciseName").value="";
+  document.getElementById("exercisePhoto").value="";
+  document.getElementById("exerciseVideo").value="";
+  renderExercises();
+}
+function deleteExercise(drawer,id){
+  let ex=exercises();
+  ex[drawer]=(ex[drawer]||[]).filter(x=>x.id!==id);
+  setExercises(ex);
+  renderExercises();
+}
+async function openExercisePhoto(id){
+  let f=await getFile("exercise_photo_"+id);
+  if(!f)return alert("Fotka není vložená.");
+  openImageFile(f,"Fotka cvičení");
+}
+async function openExerciseVideo(id){
+  let f=await getFile("exercise_video_"+id);
+  if(!f)return alert("Video není vložené.");
+  playFile(f,"Video cvičení");
+}
+function renderExercises(){
+  if(activeDrawerIndex===null)return;
+  let d=drawers();
+  let drawer=d[activeDrawerIndex];
+  document.getElementById("activeDrawerTitle").textContent="📂 "+drawer;
+  let box=document.getElementById("exerciseList");
+  let ex=exercises()[drawer]||[];
+  if(!ex.length){box.innerHTML="<p class=small>Ve složce zatím nejsou žádná cvičení.</p>";return}
+  box.innerHTML=ex.map(item=>{
+    let icons="";
+    if(item.hasPhoto)icons+=`<button class=iconBtn onclick="openExercisePhoto('${item.id}')">🖼️</button>`;
+    if(item.hasVideo)icons+=`<button class=iconBtn onclick="openExerciseVideo('${item.id}')">🎥</button>`;
+    return `<div class=block><div class=space><b>⚽ ${esc(item.name)}</b><div class=row>${icons}<button class=danger onclick="deleteExercise('${drawer}','${item.id}')">Smazat</button></div></div></div>`;
+  }).join("");
+}
+
+function staff(){
+  let s=load(LS,null);
+  if(!s){
+    s=[
+      {id:"pavel",name:"Pavel",role:"admin"},
+      {id:"kuba",name:"Kuba",role:"coach"},
+      {id:"rt",name:"Realizák",role:"view"}
+    ];
+    save(LS,s);
+  }
+  return s;
+}
+function setStaff(s){save(LS,s)}
+function roleText(r){return r==="admin"?"Administrátor":r==="coach"?"Trenér - může upravovat":"RT - pouze náhled"}
+function addStaff(){
+  let n=pretty(document.getElementById("staffName").value);
+  if(!n)return;
+  let r=document.getElementById("staffRole").value;
+  let s=staff();
+  s.push({id:Date.now()+"_"+Math.random().toString(16).slice(2),name:n,role:r});
+  setStaff(s);
+  document.getElementById("staffName").value="";
+  renderStaff();
+}
+function deleteStaff(i){
+  let s=staff();
+  s.splice(i,1);
+  setStaff(s);
+  renderStaff();
+}
+function renderStaff(){
+  let box=document.getElementById("staffList");
+  if(!box)return;
+  let s=staff();
+  box.innerHTML="<table><tr><th>Jméno</th><th>Role</th><th></th></tr>"+s.map((x,i)=>`<tr><td>${esc(x.name)}</td><td>${roleText(x.role)}</td><td><button class=danger onclick="deleteStaff(${i})">Smazat</button></td></tr>`).join("")+"</table>";
+}
+
+function restore(){let id=localStorage.getItem(LL);if(id&&players().find(p=>p.id===id))currentPlayerId=id}
+function render(){try{renderCal();renderPlayers();renderAttendance();renderSummary();renderHomeTraining();renderPlayerPanel();renderVault();renderStaff();renderTeams();if(activeDrawerIndex!==null)renderExercises()}catch(e){console.error(e)}}
+restore();render();
+</script>
+
+<script>
+(function(){
+  function forceTab(id){
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    const page=document.getElementById(id);
+    if(page) page.classList.add('active');
+    document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+    const nav=document.getElementById('nav-'+id);
+    if(nav) nav.classList.add('active');
+    if(typeof render === 'function') render();
+  }
+  window.forceTab=forceTab;
+  window.addEventListener('DOMContentLoaded',function(){
+    document.querySelectorAll('nav button').forEach(btn=>{
+      const id=(btn.id||'').replace('nav-','');
+      if(id){
+        btn.onclick=function(e){
+          e.preventDefault();
+          forceTab(id);
+        };
+      }
+    });
+  });
+})();
+</script>
+
 </body>
 </html>
