@@ -432,6 +432,102 @@ function tcCodeRole(code){
 }
 
 
+/* --- TC 1.6.1 Team Data Model ---
+Cíl:
+- připravit strukturu týmových prostorů
+- neměnit zatím chování aplikace
+- aktuální data bezpečně zrcadlit do výchozího týmu
+
+Datový model:
+tc_team_model_v01 = {
+  teams: [
+    {
+      id,
+      name,
+      players,
+      trainings,
+      attendance,
+      staff,
+      vaultDrawers,
+      vaultExercises,
+      createdAt
+    }
+  ],
+  currentTeamId,
+  ownerId
+}
+*/
+const TC_TEAM_MODEL_KEY = "tc_team_model_v01";
+const TC_DEFAULT_TEAM_ID = "zbiroh_default";
+
+function tcDefaultTeamName(){
+  return currentTeam ? currentTeam() : "TJ Město Zbiroh";
+}
+
+function tcEmptyTeam(id,name){
+  return {
+    id:id,
+    name:name,
+    players:[],
+    trainings:{},
+    attendance:{},
+    staff:[],
+    vaultDrawers:[],
+    vaultExercises:{},
+    createdAt:new Date().toISOString()
+  };
+}
+
+function tcLoadTeamModel(){
+  return load(TC_TEAM_MODEL_KEY,{teams:[],currentTeamId:TC_DEFAULT_TEAM_ID,ownerId:"owner"});
+}
+
+function tcSaveTeamModel(model){
+  save(TC_TEAM_MODEL_KEY,model);
+}
+
+function tcFindTeam(model,id){
+  return (model.teams||[]).find(t=>t.id===id)||null;
+}
+
+function tcEnsureTeamModel(){
+  let model=tcLoadTeamModel();
+  if(!model.teams)model.teams=[];
+  if(!model.currentTeamId)model.currentTeamId=TC_DEFAULT_TEAM_ID;
+  if(!model.ownerId)model.ownerId="owner";
+
+  let team=tcFindTeam(model,TC_DEFAULT_TEAM_ID);
+  if(!team){
+    team=tcEmptyTeam(TC_DEFAULT_TEAM_ID,tcDefaultTeamName());
+    team.players=players();
+    team.trainings=trs();
+    team.attendance=att();
+    team.staff=staff();
+    team.vaultDrawers=drawers();
+    team.vaultExercises=exercises();
+    model.teams.push(team);
+  }else{
+    // bezpečné doplnění polí, žádné mazání
+    if(!team.name)team.name=tcDefaultTeamName();
+    if(!team.players)team.players=players();
+    if(!team.trainings)team.trainings=trs();
+    if(!team.attendance)team.attendance=att();
+    if(!team.staff)team.staff=staff();
+    if(!team.vaultDrawers)team.vaultDrawers=drawers();
+    if(!team.vaultExercises)team.vaultExercises=exercises();
+  }
+
+  tcSaveTeamModel(model);
+  return model;
+}
+
+function tcCurrentTeamModel(){
+  let model=tcEnsureTeamModel();
+  return tcFindTeam(model,model.currentTeamId)||tcFindTeam(model,TC_DEFAULT_TEAM_ID);
+}
+
+
+
 const DB='tc_media_db_v01', STORE='files';
 function db(){return new Promise((res,rej)=>{let r=indexedDB.open(DB,1);r.onupgradeneeded=e=>e.target.result.createObjectStore(STORE);r.onsuccess=e=>res(e.target.result);r.onerror=e=>rej(e.target.error)})}
 async function putFile(k,f){let d=await db();return new Promise((res,rej)=>{let t=d.transaction(STORE,'readwrite');t.objectStore(STORE).put(f,k);t.oncomplete=res;t.onerror=e=>rej(e.target.error)})}
@@ -915,6 +1011,7 @@ function restore(){
   if(id&&players().find(p=>p.id===id))currentPlayerId=id;
   let sid=localStorage.getItem(LRT);
   if(sid&&staff().find(s=>s.id===sid))currentStaffId=sid;
+  tcEnsureTeamModel();
 }
 function render(){try{renderCal();renderPlayers();renderAttendance();renderSummary();renderHomeTraining();renderPremiumHome();setupCoachPhoto();renderPlayerPanel();renderVault();renderStaff();renderTeams();if(activeDrawerIndex!==null)renderExercises()}catch(e){console.error(e)}}
 restore();render();

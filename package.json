@@ -1,6 +1,6 @@
 {
-  "name": "touchline-coach-tc-1-6-0-roles-foundation",
-  "version": "1.6.0",
+  "name": "touchline-coach-tc-1-6-1-team-data-model",
+  "version": "1.6.1",
   "private": true,
   "type": "module",
   "scripts": {
