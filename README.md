@@ -1,17 +1,21 @@
-# Touchline Coach v1.4 – RT kódy
+# Touchline Coach TC 1.5
 
-Přidáno:
-- členové realizačního týmu mají vlastní RT kód
-- přidání RT automaticky generuje kód
-- reset kódu
-- kopírování RT kódů
-- jednoduché přihlášení RT přes jméno + kód
+Úpravy:
+- název webu bez "stabilní"
+- Home: "Nejbližší trénink"
+- záložka "Přístup" místo "Hráč"
+- jedno pole pro přístupový kód
+  - HR-* = hráčka
+  - RT-* = realizační tým
+- nové hráčky dostávají kód HR-ZBIROH-XXXX
+- RT dostává kód RT-ZBIROH-XXXX
+- iPhone safe-area pro spodní lištu
 
 Poznámka:
-- Tohle je jednoduchá lokální verze bez práv a bez cloudu.
-- Sdílení dat mezi různými zařízeními bude až přes Supabase/cloud.
+- Data jsou zatím stále lokální v zařízení.
+- Sdílený tým / cloud je další velký krok.
 
 Nasazení:
-- přes GitHub Desktop přepsat lokální složku obsahem ZIPu
+- přes GitHub Desktop přepsat složku repozitáře obsahem ZIPu
 - Commit
 - Push origin

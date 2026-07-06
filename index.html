@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Touchline Coach stabilní</title>
+<title>Touchline Coach</title>
 <style>
 :root{--bg:#0f1115;--card:#181b22;--text:#f3f5f7;--muted:#9aa3ad;--green:#46e26f;--red:#ff5d5d;--yellow:#ffd166;--blue:#4da3ff;--border:#2b303b}
 *{box-sizing:border-box}
@@ -68,6 +68,12 @@ body.home-premium #home{max-width:none}
 .styleBottom{margin:18px -14px -8px;min-height:190px;border-radius:26px 26px 0 0;overflow:hidden;background:radial-gradient(circle at 50% 8%,rgba(255,122,42,.45),transparent 24%),radial-gradient(circle at 20% 30%,rgba(255,255,255,.75),transparent 5%),radial-gradient(circle at 82% 30%,rgba(255,255,255,.75),transparent 5%),linear-gradient(to bottom,rgba(8,12,16,.4),#050607 68%),repeating-linear-gradient(0deg,rgba(139,255,61,.14) 0 2px,transparent 2px 16px);border-top:1px solid rgba(255,255,255,.14);box-shadow:inset 0 12px 80px rgba(0,0,0,.6)}
 @media(max-width:760px){.homeGrid{grid-template-columns:1fr}.tcHero{min-height:310px}.clubHero h1{font-size:25px}.tcBrand .tcBig{font-size:42px}}
 
+
+/* --- TC 1.5 iPhone safe-area fix --- */
+main{padding-bottom:calc(82px + env(safe-area-inset-bottom,0px))}
+nav{padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
+
 </style>
 
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=12">
@@ -115,7 +121,7 @@ body.home-premium #home{max-width:none}
     <div class="premiumCard" onclick="openNearestTrainingDetail()" style="cursor:pointer">
       <div class="premiumTitle"><div class="premiumIcon">📅</div><div>Přehled pro trénink</div></div>
       <div class="trainInfo">
-        <h3>Dnešní trénink</h3>
+        <h3>Nejbližší trénink</h3>
         <div class="infoLine"><span class="ico">◷</span><span id="premiumTime">čas nezadán</span></div>
         <div class="infoLine"><span class="ico">⌖</span><span id="premiumPlace">místo nezadáno</span></div>
         <div class="countLine"><div class="label"><span class="roundIcon">✓</span>Přijde</div><div class="num" id="premiumYes">0</div></div>
@@ -172,14 +178,32 @@ body.home-premium #home{max-width:none}
 <section id="team" class="page">
   <div class="card"><h2>Tým</h2><div class="small">Hráči: <b id="playerCount">0</b></div></div>
   <div class="card"><h3>Přidat hráče</h3><div class="row"><input id="onePlayer" placeholder="Příjmení Jméno"><button class="btn" onclick="addOne()">Přidat</button></div></div>
-  <div class="card"><h3>Import z Excelu</h3><textarea id="bulkPlayers" placeholder="Novák Petr&#10;Svoboda Martin"></textarea><div class="row"><input id="teamCode" value="ZBIROH25" style="max-width:170px"><button class="btn" onclick="importPlayers()">Importovat</button></div></div>
+  <div class="card"><h3>Import z Excelu</h3><textarea id="bulkPlayers" placeholder="Novák Petr&#10;Svoboda Martin"></textarea><div class="row"><input id="teamCode" value="HR-ZBIROH" style="max-width:170px"><button class="btn" onclick="importPlayers()">Importovat</button></div></div>
   <div class="card"><h3>Seznam hráčů</h3><div id="playersTable"></div><button class="btn2" onclick="copyCodes()">Kopírovat kódy</button><pre id="copyBox" class="small"></pre></div>
 </section>
 
 <section id="attendance" class="page"><div class="card"><h2>Docházka</h2><div id="attendanceList"></div></div></section>
 
 <section id="login" class="page">
-  <div class="card"><h2>Hráč</h2><input id="loginName" placeholder="Příjmení Jméno"><input id="loginSecret" placeholder="Kód nebo PIN"><label class="small"><input type="checkbox" id="stay" style="width:auto"> Zůstat přihlášen</label><div class="row"><button class="btn" onclick="playerLogin()">Přihlásit</button><button class="btn2" onclick="playerLogout()">Odhlásit</button></div><div id="loginMsg" class="small"></div></div>
+  <div class="card">
+    <h2>Přístup</h2>
+    <p class="small">Zadej přístupový kód. Aplikace sama pozná, jestli jde o hráčku nebo člena RT.</p>
+    <input id="accessCode" placeholder="Např. HR-ZBIROH-7K2P nebo RT-ZBIROH-8F4M">
+    <div class="row" style="margin-top:8px">
+      <button class="btn" onclick="accessLogin()">Přihlásit kódem</button>
+      <button class="btn2" onclick="accessLogout()">Odhlásit</button>
+    </div>
+    <div id="accessMsg" class="small"></div>
+  </div>
+
+  <div class="card">
+    <h3>Ruční přihlášení hráčky</h3>
+    <input id="loginName" placeholder="Příjmení Jméno">
+    <input id="loginSecret" placeholder="Kód nebo PIN">
+    <label class="small"><input type="checkbox" id="stay" style="width:auto"> Zůstat přihlášen</label>
+    <div class="row"><button class="btn" onclick="playerLogin()">Přihlásit hráčku</button><button class="btn2" onclick="playerLogout()">Odhlásit</button></div>
+    <div id="loginMsg" class="small"></div>
+  </div>
   <div id="pinSetup" class="card hidden"><h3>Nastavit PIN</h3><input id="pin1" maxlength="4" placeholder="PIN"><input id="pin2" maxlength="4" placeholder="PIN znovu"><button class="btn" onclick="savePin()">Uložit PIN</button></div>
   <div id="playerPanel" class="card hidden"></div>
 </section>
@@ -274,7 +298,7 @@ body.home-premium #home{max-width:none}
 <button id="nav-calendar" onclick="tab('calendar')">Kalendář</button>
 <button id="nav-team" onclick="tab('team')">Tým</button>
 <button id="nav-attendance" onclick="tab('attendance')">Docházka</button>
-<button id="nav-login" onclick="tab('login')">Hráč</button>
+<button id="nav-login" onclick="tab('login')">Přístup</button>
 <button id="nav-vault" onclick="tab('vault')">Trezor</button>
 <button id="nav-staff" onclick="tab('staff')">RT</button>
 </nav>
@@ -302,8 +326,8 @@ async function getFile(k){let d=await db();return new Promise((res,rej)=>{let t=
 async function delFile(k){let d=await db();return new Promise((res,rej)=>{let t=d.transaction(STORE,'readwrite');t.objectStore(STORE).delete(k);t.oncomplete=res;t.onerror=e=>rej(e.target.error)})}
 function pdfKey(){return 'pdf_'+selectedDate} function photoKey(){return 'photo_'+selectedDate} function vidKey(i){return 'video_'+selectedDate+'_'+i}
 
-function addOne(){let n=pretty(document.getElementById('onePlayer').value);if(!n)return;let p=players();p.push({id:Date.now()+'_'+Math.random().toString(16).slice(2),name:n,code:'ZBIROH25-'+code4(),pin:''});setPlayers(p);document.getElementById('onePlayer').value='';render()}
-function importPlayers(){let rows=document.getElementById('bulkPlayers').value.split(/\n+/).map(pretty).filter(Boolean),tc=document.getElementById('teamCode').value||'ZBIROH25',p=players();rows.forEach(n=>p.push({id:Date.now()+'_'+Math.random().toString(16).slice(2),name:n,code:tc+'-'+code4(),pin:''}));setPlayers(p);document.getElementById('bulkPlayers').value='';render()}
+function addOne(){let n=pretty(document.getElementById('onePlayer').value);if(!n)return;let p=players();p.push({id:Date.now()+'_'+Math.random().toString(16).slice(2),name:n,code:'HR-ZBIROH-'+code4(),pin:''});setPlayers(p);document.getElementById('onePlayer').value='';render()}
+function importPlayers(){let rows=document.getElementById('bulkPlayers').value.split(/\n+/).map(pretty).filter(Boolean),tc=document.getElementById('teamCode').value||'HR-ZBIROH',p=players();rows.forEach(n=>p.push({id:Date.now()+'_'+Math.random().toString(16).slice(2),name:n,code:tc+'-'+code4(),pin:''}));setPlayers(p);document.getElementById('bulkPlayers').value='';render()}
 function removePlayer(id){setPlayers(players().filter(p=>p.id!==id));let a=att();delete a[id];setAttObj(a);render()}
 function resetPin(id){let p=players(),x=p.find(y=>y.id===id);if(x)x.pin='';setPlayers(p);render()}
 function copyCodes(){document.getElementById('copyBox').textContent=players().map(p=>p.name+' | '+p.code).join('\n');navigator.clipboard.writeText(document.getElementById('copyBox').textContent)}
@@ -411,6 +435,52 @@ async function openHomePhoto(k){let f=await getFile('photo_'+k);if(!f)return ale
 async function openHomeVideo(k,i){let f=await getFile('video_'+k+'_'+i);if(!f)return alert('MP4 není vložené.');playFile(f,'Video ke cvičení')}
 function playFile(f,title){tab('home');document.getElementById('homeDetail').classList.remove('hidden');let box=document.getElementById('playerBox'),v=document.getElementById('videoPlayer'),ttl=document.getElementById('mediaTitle');if(v.dataset.url)URL.revokeObjectURL(v.dataset.url);let url=URL.createObjectURL(f);v.dataset.url=url;v.src=url;ttl.textContent=title;box.classList.remove('hidden');v.load();v.play().catch(()=>{});box.scrollIntoView({behavior:'smooth'})}
 function closeVideo(){let box=document.getElementById('playerBox'),v=document.getElementById('videoPlayer');v.pause();if(v.dataset.url)URL.revokeObjectURL(v.dataset.url);v.removeAttribute('src');box.classList.add('hidden')}
+
+
+function accessLogin(){
+  let code=(document.getElementById('accessCode').value||'').trim().toUpperCase();
+  let msg=document.getElementById('accessMsg');
+  if(!code){if(msg)msg.textContent='Zadej kód.';return;}
+
+  let st=staff().find(s=>String(s.code||'').toUpperCase()===code);
+  if(st){
+    currentStaffId=st.id;
+    localStorage.setItem(LRT,st.id);
+    currentPlayerId=null;
+    localStorage.removeItem(LL);
+    if(msg)msg.textContent='Přihlášen RT: '+st.name+' • '+roleText(st.role);
+    render();
+    tab('home');
+    return;
+  }
+
+  let p=players().find(x=>String(x.code||'').toUpperCase()===code);
+  if(p){
+    currentPlayerId=p.id;
+    localStorage.setItem(LL,p.id);
+    currentStaffId=null;
+    localStorage.removeItem(LRT);
+    if(msg)msg.textContent='Přihlášena hráčka: '+p.name;
+    render();
+    tab('login');
+    return;
+  }
+
+  if(msg)msg.textContent='Kód nenalezen.';
+}
+function accessLogout(){
+  currentPlayerId=null;
+  currentStaffId=null;
+  localStorage.removeItem(LL);
+  localStorage.removeItem(LRT);
+  let msg=document.getElementById('accessMsg');
+  if(msg)msg.textContent='Odhlášeno.';
+  let lm=document.getElementById('loginMsg');
+  if(lm)lm.textContent='Odhlášeno.';
+  let sm=document.getElementById('staffLoginMsg');
+  if(sm)sm.textContent='Odhlášeno.';
+  render();
+}
 
 function playerLogin(){let name=norm(document.getElementById('loginName').value),sec=document.getElementById('loginSecret').value.trim(),p=players().find(x=>norm(x.name)===name);if(!p){msg('Hráč nenalezen.');return}if(p.pin){if(sec!==p.pin){msg('Špatný PIN.');return}}else{if(sec.toUpperCase()!==String(p.code).toUpperCase()){msg('Špatný kód.');return}}currentPlayerId=p.id;if(document.getElementById('stay').checked)localStorage.setItem(LL,p.id);else localStorage.removeItem(LL);msg('Přihlášeno.');render()}
 function msg(t){document.getElementById('loginMsg').textContent=t}
