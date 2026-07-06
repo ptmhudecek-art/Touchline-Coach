@@ -1,6 +1,6 @@
 {
-  "name": "touchline-coach-tc-1-6-2a-team-switch-ui-only",
-  "version": "1.6.2",
+  "name": "touchline-coach-tc-1-6-3-team-isolation",
+  "version": "1.6.3",
   "private": true,
   "type": "module",
   "scripts": {

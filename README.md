@@ -1,18 +1,18 @@
-# Touchline Coach TC 1.6.2a – Team Switch UI Only
-
-Opravená bezpečná verze.
+# Touchline Coach TC 1.6.3 – Team Isolation
 
 Přidáno:
-- přepínač týmů v části Tým
-- + tým v části Tým
-- ukládání seznamu týmů a aktivního týmu pro další kroky
-
-Důležité:
-- NESAHÁ na players(), trainings, attendance, staff, trezor.
-- Home beze změny.
-- Kalendář beze změny.
-- RT beze změny.
-- Žádná izolace dat zatím neprobíhá.
+- data se ukládají podle aktivního týmu
+- defaultní tým zdědí stávající data
+- nový tým začíná prázdný:
+  - členové
+  - tréninky
+  - docházka
+  - RT
+  - trezor
+- přepnutí týmu obnoví zobrazení aplikace
 
 Summary:
-TC 1.6.2a Team Switch UI Only
+TC 1.6.3 Team Isolation
+
+Rollback:
+TC 1.5.2 BACKUP STABLE
