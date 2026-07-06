@@ -6,42 +6,6 @@
 <title>Touchline Coach</title>
 <style>
 :root{--bg:#0f1115;--card:#181b22;--text:#f3f5f7;--muted:#9aa3ad;--green:#46e26f;--red:#ff5d5d;--yellow:#ffd166;--blue:#4da3ff;--border:#2b303b}
-
-
-/* --- TC 1.6.3 Team Isolation ---
-Data jsou oddělená podle aktivního týmu.
-Defaultní tým zdědí stará data, nové týmy začínají prázdné.
-*/
-function tcTeamStorageKey(base){
-  let id = (typeof tcUiActiveTeamId === "function") ? tcUiActiveTeamId() : "zbiroh_default";
-  return base + "__" + id;
-}
-
-function tcTeamLoad(base, def){
-  let id = (typeof tcUiActiveTeamId === "function") ? tcUiActiveTeamId() : "zbiroh_default";
-  let key = tcTeamStorageKey(base);
-  let raw = localStorage.getItem(key);
-  if(raw !== null){
-    try{return JSON.parse(raw)}catch(e){return def}
-  }
-  if(id === "zbiroh_default"){
-    return load(base, def);
-  }
-  return def;
-}
-
-function tcTeamSave(base, value){
-  let id = (typeof tcUiActiveTeamId === "function") ? tcUiActiveTeamId() : "zbiroh_default";
-  save(tcTeamStorageKey(base), value);
-  if(id === "zbiroh_default"){
-    save(base, value);
-  }
-}
-
-function tcIsDefaultTeam(){
-  return ((typeof tcUiActiveTeamId === "function") ? tcUiActiveTeamId() : "zbiroh_default") === "zbiroh_default";
-}
-
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Helvetica,sans-serif}
 header{padding:16px;background:#12151b;border-bottom:1px solid var(--border)}
@@ -428,9 +392,9 @@ function tab(id){document.querySelectorAll('.page').forEach(p=>p.classList.remov
 function toggleDetail(){document.getElementById('homeDetail').classList.toggle('hidden');}
 function load(k,def){return JSON.parse(localStorage.getItem(k)||JSON.stringify(def))}
 function save(k,v){localStorage.setItem(k,JSON.stringify(v))}
-function players(){return tcTeamLoad(LP,[])} function setPlayers(v){tcTeamSave(LP,v)}
-function att(){return tcTeamLoad(LA,{})} function setAttObj(v){tcTeamSave(LA,v)}
-function trs(){return tcTeamLoad(LT,{})} function setTrs(v){tcTeamSave(LT,v)}
+function players(){return load(LP,[])} function setPlayers(v){save(LP,v)}
+function att(){return load(LA,{})} function setAttObj(v){save(LA,v)}
+function trs(){return load(LT,{})} function setTrs(v){save(LT,v)}
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function pretty(s){return String(s).trim().replace(/\s+/g,' ')} function norm(s){return pretty(s).toLowerCase()}
 function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
@@ -638,20 +602,16 @@ function renderTeams(){
 let activeDrawerIndex=null;
 
 function drawers(){
-  let d=tcTeamLoad(LD,null);
+  let d=load(LD,null);
   if(!d){
-    if(tcIsDefaultTeam()){
-      d=["Aktivace","Bagovky","Dovednosti","Zakončení","Hry"];
-      setDrawers(d);
-    }else{
-      d=[];
-    }
+    d=["Aktivace","Bagovky","Dovednosti","Zakončení","Hry"];
+    save(LD,d);
   }
   return d;
 }
-function setDrawers(d){tcTeamSave(LD,d)}
-function exercises(){return tcTeamLoad(LE,{})}
-function setExercises(e){tcTeamSave(LE,e)}
+function setDrawers(d){save(LD,d)}
+function exercises(){return load(LE,{})}
+function setExercises(e){save(LE,e)}
 
 function addDrawer(){
   let n=pretty(document.getElementById("drawerName").value);
@@ -741,25 +701,23 @@ function renderExercises(){
 }
 
 function staff(){
-  let s=tcTeamLoad(LS,null);
+  let s=load(LS,null);
   if(!s){
-    if(tcIsDefaultTeam()){
-      s=[
-        {id:"pavel",name:"Pavel",role:"admin",code:"RT-ZBIROH-"+code4()},
-        {id:"kuba",name:"Kuba",role:"coach",code:"RT-ZBIROH-"+code4()},
-        {id:"rt",name:"Realizák",role:"view",code:"RT-ZBIROH-"+code4()}
-      ];
-      setStaff(s);
-    }else{
-      s=[];
-    }
+    s=[
+      {id:"pavel",name:"Pavel",role:"admin",code:"RT-ZBIROH-"+code4()},
+      {id:"kuba",name:"Kuba",role:"coach",code:"RT-ZBIROH-"+code4()},
+      {id:"rt",name:"Realizák",role:"view",code:"RT-ZBIROH-"+code4()}
+    ];
+    save(LS,s);
   }
   let changed=false;
-  s.forEach(x=>{if(!x.code){x.code="RT-ZBIROH-"+code4();changed=true;}});
-  if(changed)setStaff(s);
+  s.forEach(x=>{
+    if(!x.code){x.code="RT-ZBIROH-"+code4();changed=true;}
+  });
+  if(changed)save(LS,s);
   return s;
 }
-function setStaff(s){tcTeamSave(LS,s)}
+function setStaff(s){save(LS,s)}
 function roleText(r){return r==="admin"?"Hlavní trenér":r==="coach"?"Asistent trenéra":"RT - náhled"}
 function addStaff(){
   let n=pretty(document.getElementById("staffName").value);
