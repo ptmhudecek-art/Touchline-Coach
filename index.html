@@ -397,6 +397,41 @@ function pretty(s){return String(s).trim().replace(/\s+/g,' ')} function norm(s)
 function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function code4(){let c='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',s='';for(let i=0;i<4;i++)s+=c[Math.floor(Math.random()*c.length)];return s}
 
+
+/* --- TC 1.6.0 Role Foundation ---
+Role pravidla:
+- owner: správce celé aplikace, zakládá týmy
+- team_admin: správce jednoho týmu
+- rt: realizační tým jednoho týmu
+- member: člen týmu
+Tahle verze zatím nemění data ani cloud. Jen připravuje jednotné názvosloví.
+*/
+const TC_ROLES = {
+  OWNER: "owner",
+  TEAM_ADMIN: "team_admin",
+  RT: "rt",
+  MEMBER: "member"
+};
+
+function tcRoleLabel(role){
+  return {
+    owner: "Owner",
+    team_admin: "Admin týmu",
+    rt: "Realizační tým",
+    member: "Člen"
+  }[role] || "Člen";
+}
+
+function tcCodeRole(code){
+  code = String(code || "").toUpperCase();
+  if(code.startsWith("OWN-")) return TC_ROLES.OWNER;
+  if(code.startsWith("ADM-")) return TC_ROLES.TEAM_ADMIN;
+  if(code.startsWith("RT-")) return TC_ROLES.RT;
+  if(code.startsWith("CL-") || code.startsWith("HR-")) return TC_ROLES.MEMBER;
+  return null;
+}
+
+
 const DB='tc_media_db_v01', STORE='files';
 function db(){return new Promise((res,rej)=>{let r=indexedDB.open(DB,1);r.onupgradeneeded=e=>e.target.result.createObjectStore(STORE);r.onsuccess=e=>res(e.target.result);r.onerror=e=>rej(e.target.error)})}
 async function putFile(k,f){let d=await db();return new Promise((res,rej)=>{let t=d.transaction(STORE,'readwrite');t.objectStore(STORE).put(f,k);t.oncomplete=res;t.onerror=e=>rej(e.target.error)})}
