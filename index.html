@@ -678,22 +678,18 @@ function renderTeams(){
   if(!box)return;
   let teams=tcUiTeams();
   let active=tcUiActiveTeamId();
-  if(tcUiIsOwner()){
-    box.innerHTML=`<div class="teamSwitch">
-      <div class="label">Aktivní tým</div>
-      <div class="rowTeam">
-        <select id="teamSelect" onchange="tcUiSelectTeam(this.value)">
-          ${teams.map(t=>`<option value="${esc(t.id)}" ${t.id===active?'selected':''}>${esc(t.name)}</option>`).join("")}
-        </select>
-      </div>
-      <div class="rowTeam">
-        <input id="newTeamName" placeholder="Nový tým, např. U19">
-        <button class="btn" onclick="tcUiAddTeam()">+ tým</button>
-      </div>
-    </div>`;
-  }else{
-    box.innerHTML=`<div class="teamSwitch"><div class="label">Tým</div><div class="teamName">${esc(tcUiActiveTeam().name)}</div></div>`;
-  }
+  box.innerHTML=`<div class="teamSwitch">
+    <div class="label">Aktivní tým</div>
+    <div class="rowTeam">
+      <select id="teamSelect" onchange="tcUiSelectTeam(this.value)">
+        ${teams.map(t=>`<option value="${esc(t.id)}" ${t.id===active?'selected':''}>${esc(t.name)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="rowTeam">
+      <input id="newTeamName" placeholder="Nový tým, např. U19">
+      <button class="btn" onclick="tcUiAddTeam()">+ tým</button>
+    </div>
+  </div>`;
 }
 
 let activeDrawerIndex=null;
