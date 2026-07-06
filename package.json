@@ -1,6 +1,6 @@
 {
-  "name": "touchline-coach-tc-1-6-3b-add-team-button-fix",
-  "version": "1.6.3",
+  "name": "touchline-coach-tc-1-6-2a-team-switch-ui-only",
+  "version": "1.6.2",
   "private": true,
   "type": "module",
   "scripts": {

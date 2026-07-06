@@ -1,9 +1,18 @@
-# Touchline Coach TC 1.6.3b – Add Team Button Fix
+# Touchline Coach TC 1.6.2a – Team Switch UI Only
 
-Oprava:
-- v části Tým je vždy vidět přepínač týmu
-- v části Tým je vždy vidět + tým
-- ostatní logika z 1.6.3a zůstává
+Opravená bezpečná verze.
+
+Přidáno:
+- přepínač týmů v části Tým
+- + tým v části Tým
+- ukládání seznamu týmů a aktivního týmu pro další kroky
+
+Důležité:
+- NESAHÁ na players(), trainings, attendance, staff, trezor.
+- Home beze změny.
+- Kalendář beze změny.
+- RT beze změny.
+- Žádná izolace dat zatím neprobíhá.
 
 Summary:
-TC 1.6.3b Add Team Button Fix
+TC 1.6.2a Team Switch UI Only
