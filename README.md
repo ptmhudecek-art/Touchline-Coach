@@ -1,26 +1,12 @@
-# Touchline Coach v1.2 Stable – Vite Public Fix
+# Touchline Coach v1.3.1 – Home Detail Fix CLEAN
 
-Tahle verze je opravená pro Vercel/Vite.
+Oprava bez duplicit:
+- Home ukazuje nejbližší trénink.
+- Klik na kartu Přehled pro trénink otevře detail nejbližšího tréninku.
+- Tlačítko Detail tréninku otevře přímo editor daného tréninku v kalendáři.
+- Funkce renderHomeTraining a renderPremiumHome jsou v souboru jen jednou.
+- Struktura public/ zůstává pro Vite/Vercel.
 
-Důležité:
-- statické soubory jsou ve složce `public/`
-- Vite je při buildu zkopíruje do `dist`
-- `/icon-192.png` už nebude 404
-- PWA ikona používá TC logo
-- klubové logo je `public/zbiroh.png`
-
-Nahraj celý obsah ZIPu do GitHubu:
-- index.html
-- package.json
-- README.md
-- .gitignore
-- main.js
-- style.css
-- public/
-
-Po deployi:
-1. Vercel musí být Ready.
-2. Otevři v mobilu: https://touchline-coach.vercel.app/icon-192.png?v=12
-3. Musíš vidět TC ikonu.
-4. Pak otevři: https://touchline-coach.vercel.app/?v=12
-5. Odinstaluj starou PWA a nainstaluj znovu.
+Nasazení:
+- přepsat lokální složku repozitáře tímto obsahem
+- GitHub Desktop: Commit → Push origin

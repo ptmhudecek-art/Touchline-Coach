@@ -112,7 +112,7 @@ body.home-premium #home{max-width:none}
     </div>
   </div>
   <div class="homeGrid">
-    <div class="premiumCard">
+    <div class="premiumCard" onclick="openNearestTrainingDetail()" style="cursor:pointer">
       <div class="premiumTitle"><div class="premiumIcon">📅</div><div>Přehled pro trénink</div></div>
       <div class="trainInfo">
         <h3>Dnešní trénink</h3>
@@ -121,7 +121,7 @@ body.home-premium #home{max-width:none}
         <div class="countLine"><div class="label"><span class="roundIcon">✓</span>Přijde</div><div class="num" id="premiumYes">0</div></div>
         <div class="countLine orange"><div class="label"><span class="roundIcon orange">●</span>Omluveno</div><div class="num" id="premiumExc">0</div></div>
         <div class="countLine gray"><div class="label"><span class="roundIcon gray">?</span>Bez reakce</div><div class="num" id="premiumNone">0</div></div>
-        <button class="bigGreenBtn" onclick="toggleDetail()">Detail tréninku</button>
+        <button class="bigGreenBtn" onclick="event.stopPropagation();openNearestTrainingDetail()">Detail tréninku</button>
       </div>
     </div>
     <div class="premiumCard">
@@ -360,7 +360,29 @@ async function playVideo(i){if(!selectedDate)return;let f=await getFile('video_'
 async function deleteVideo(i){await delFile('video_'+selectedDate+'_'+i);updateVideoStates();render()}
 async function updateVideoStates(){if(!selectedDate)return;for(let e of document.querySelectorAll('[id^=vs_]')){let i=e.id.split('_')[1],f=await getFile('video_'+selectedDate+'_'+i);e.textContent=f?'✓ MP4 uložené: '+f.name:'MP4 nevloženo'}}
 
-async function renderHomeTraining(){let t=trs(),today=iso(new Date()),key=today;if(!t[key]){let keys=Object.keys(t).sort();key=keys.find(k=>k>=today)||keys[keys.length-1]}let info=document.getElementById('homeInfo'),box=document.getElementById('homeBlocks');if(!key||!t[key]){info.textContent='Zatím není žádný trénink.';box.innerHTML='';return}let tr=t[key];info.textContent=key.split('-').reverse().join('.')+' • '+(tr.time||'čas nezadán')+' • '+(tr.place||'místo nezadáno');let out='';let pdf=await getFile('pdf_'+key);let photo=await getFile('photo_'+key);let topIcons='';if(pdf)topIcons+=`<button class=iconBtn onclick="openHomePdf('${key}')">📄</button>`;if(photo)topIcons+=`<button class=iconBtn onclick="openHomePhoto('${key}')">🖼️</button>`;if(topIcons)out+=`<div class=mediaIcons>${topIcons}</div>`;for(let i=0;i<(tr.blocks||[]).length;i++){let b=tr.blocks[i],v=await getFile('video_'+key+'_'+i);out+=`<div class=block><div class=space><b>${esc(b.name)}</b><span class="pill blue">${esc(b.min)}´</span></div>${v?`<div class=mediaIcons><button class=iconBtn onclick="openHomeVideo('${key}',${i})">🎥</button></div>`:''}</div>`}box.innerHTML=out}
+async function renderHomeTraining(){
+  let t=trs(),key=nearestTrainingKey();
+  let info=document.getElementById('homeInfo'),box=document.getElementById('homeBlocks');
+  if(!key||!t[key]){
+    if(info)info.textContent='';
+    if(box)box.innerHTML='';
+    return;
+  }
+  let tr=t[key];
+  if(info)info.textContent=key.split('-').reverse().join('.')+' • '+(tr.time||'čas nezadán')+' • '+(tr.place||'místo nezadáno');
+  let out='';
+  let pdf=await getFile('pdf_'+key);
+  let photo=await getFile('photo_'+key);
+  let topIcons='';
+  if(pdf)topIcons+=`<button class=iconBtn onclick="openHomePdf('${key}')">📄</button>`;
+  if(photo)topIcons+=`<button class=iconBtn onclick="openHomePhoto('${key}')">🖼️</button>`;
+  if(topIcons)out+=`<div class=mediaIcons>${topIcons}</div>`;
+  for(let i=0;i<(tr.blocks||[]).length;i++){
+    let b=tr.blocks[i],v=await getFile('video_'+key+'_'+i);
+    out+=`<div class=block><div class=space><b>${esc(b.name)}</b><span class="pill blue">${esc(b.min)}´</span></div>${v?`<div class=mediaIcons><button class=iconBtn onclick="openHomeVideo('${key}',${i})">🎥</button></div>`:''}</div>`;
+  }
+  if(box)box.innerHTML=out;
+}
 async function openHomePdf(k){let f=await getFile('pdf_'+k);if(!f)return alert('PDF není vložené.');window.open(URL.createObjectURL(f),'_blank')}
 async function openHomePhoto(k){let f=await getFile('photo_'+k);if(!f)return alert('Foto není vložené.');openImageFile(f,'Foto nákresu')}
 async function openHomeVideo(k,i){let f=await getFile('video_'+k+'_'+i);if(!f)return alert('MP4 není vložené.');playFile(f,'Video ke cvičení')}
@@ -561,6 +583,26 @@ function renderStaff(){
 }
 
 
+
+function nearestTrainingKey(){
+  let t=trs(),today=iso(new Date());
+  let keys=Object.keys(t).sort();
+  return keys.find(k=>k>=today)||keys[keys.length-1]||null;
+}
+function openNearestTrainingDetail(){
+  let key=nearestTrainingKey();
+  if(!key){
+    tab('calendar');
+    return;
+  }
+  tab('calendar');
+  selectDay(key);
+  setTimeout(()=>{
+    let editor=document.getElementById('editor');
+    if(editor)editor.scrollIntoView({behavior:'smooth',block:'start'});
+  },80);
+}
+
 function renderMiniCal(){
   let grid=document.getElementById('miniCal'); if(!grid)return; grid.innerHTML='';
   let months=['leden','únor','březen','duben','květen','červen','červenec','srpen','září','říjen','listopad','prosinec'];
@@ -571,12 +613,23 @@ function renderMiniCal(){
   for(let d=1;d<=days;d++){let date=iso(new Date(y,m,d)),has=!!t[date],isToday=date===today;grid.innerHTML+='<div class="md">'+(isToday?'<span class="todayMini">'+d+'</span>':d)+(has?'<span class="miniDot"></span>':'')+'</div>';}
 }
 function renderPremiumHome(){
-  let t=trs(),today=iso(new Date()),key=today;if(!t[key]){let keys=Object.keys(t).sort();key=keys.find(k=>k>=today)||keys[keys.length-1]}
-  let tr=key?t[key]:null, time=document.getElementById('premiumTime'),place=document.getElementById('premiumPlace'),badge=document.getElementById('heroBadge');
-  if(time)time.textContent=tr?(tr.time||'čas nezadán'):'čas nezadán';
-  if(place)place.textContent=tr?(tr.place||'místo nezadáno'):'místo nezadáno';
-  if(badge)badge.textContent=tr?((key===today?'Dnes ':'')+(tr.time||'')):'Dnes';
-  let s={yes:0,injury:0,work:0,other:0,none:0},a=att();players().forEach(p=>s[a[p.id]||'none']++);let exc=s.injury+s.work+s.other;
+  let t=trs(),key=nearestTrainingKey();
+  let tr=key?t[key]:null;
+  let time=document.getElementById('premiumTime'),place=document.getElementById('premiumPlace'),badge=document.getElementById('heroBadge');
+  if(time)time.textContent=tr?(tr.time||'čas nezadán'):'';
+  if(place)place.textContent=tr?(tr.place||'místo nezadáno'):'';
+  if(badge){
+    if(tr&&key){
+      let today=iso(new Date());
+      let label=key===today?'Dnes':key.split('-').reverse().join('.');
+      badge.textContent=(label+' '+(tr.time||'')).trim();
+    }else{
+      badge.textContent='Přehled';
+    }
+  }
+  let s={yes:0,injury:0,work:0,other:0,none:0},a=att();
+  players().forEach(p=>s[a[p.id]||'none']++);
+  let exc=s.injury+s.work+s.other;
   [['premiumYes',s.yes],['premiumExc',exc],['premiumNone',s.none]].forEach(x=>{let e=document.getElementById(x[0]);if(e)e.textContent=x[1]});
   renderMiniCal();
 }
