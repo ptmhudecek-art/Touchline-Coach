@@ -1,9 +1,18 @@
-# Touchline Coach TC 1.5.2
+# Touchline Coach TC 1.6.2a – Team Switch UI Only
 
-Úprava karty Přístup:
-- ponechán nadpis „Přístup“
-- text zkrácen na „Zadej přístupový kód.“
-- „Ruční přihlášení hráčky“ změněno na „Ruční přihlášení“
+Opravená bezpečná verze.
 
-V souladu s TCDG:
-Neříkej uživateli to, co aplikace ví sama.
+Přidáno:
+- přepínač týmů v části Tým
+- + tým v části Tým
+- ukládání seznamu týmů a aktivního týmu pro další kroky
+
+Důležité:
+- NESAHÁ na players(), trainings, attendance, staff, trezor.
+- Home beze změny.
+- Kalendář beze změny.
+- RT beze změny.
+- Žádná izolace dat zatím neprobíhá.
+
+Summary:
+TC 1.6.2a Team Switch UI Only

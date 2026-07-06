@@ -143,6 +143,14 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
   color:#d7dde5;
 }
 
+
+/* --- TC 1.6.2a Team Switch UI only --- */
+.teamSwitch{background:#11141a;border:1px solid var(--border);border-radius:14px;padding:12px;margin-top:8px}
+.teamSwitch .label{color:var(--muted);font-size:12px;text-transform:uppercase;font-weight:800;letter-spacing:.06em}
+.teamSwitch .rowTeam{display:flex;gap:8px;align-items:center;margin-top:8px}
+.teamSwitch select{flex:1;background:#0d0f13;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:16px}
+.teamSwitch .teamName{font-size:18px;font-weight:900;color:#8bff3d;margin-top:6px}
+
 </style>
 
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=12">
@@ -160,15 +168,6 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
 <header>
   <div class="logo">Touchline Coach</div>
   <div class="sub">TJ Město Zbiroh</div>
-  <div class="row" style="margin-top:10px">
-    <select id="teamSelect" onchange="selectTeam(this.value)" style="flex:1;background:#0d0f13;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:16px"></select>
-    <button class="btn2" onclick="showAddTeam()">+ tým</button>
-  </div>
-  <div id="addTeamBox" class="hidden" style="margin-top:10px">
-    <div class="row">
-      <input id="newTeamName" placeholder="Nový tým, např. U19">
-      <button class="btn" onclick="addTeam()">Přidat tým</button>
-    </div>
   </div>
 </header>
 
@@ -254,7 +253,11 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
 </section>
 
 <section id="team" class="page">
-  <div class="card"><h2>Tým</h2><div class="small">Hráči: <b id="playerCount">0</b></div></div>
+  <div class="card">
+    <h2>Tým</h2>
+    <div id="teamSwitchBox"></div>
+    <div class="small" style="margin-top:8px">Členové: <b id="playerCount">0</b></div>
+  </div>
   <div class="card"><h3>Přidat hráče</h3><div class="row"><input id="onePlayer" placeholder="Příjmení Jméno"><button class="btn" onclick="addOne()">Přidat</button></div></div>
   <div class="card"><h3>Import z Excelu</h3><textarea id="bulkPlayers" placeholder="Novák Petr&#10;Svoboda Martin"></textarea><div class="row"><input id="teamCode" value="HR-ZBIROH" style="max-width:170px"><button class="btn" onclick="importPlayers()">Importovat</button></div></div>
   <div class="card"><h3>Seznam hráčů</h3><div id="playersTable"></div><button class="btn2" onclick="copyCodes()">Kopírovat kódy</button><pre id="copyBox" class="small"></pre></div>
@@ -568,51 +571,32 @@ function renderPlayerPanel(){let p=players().find(x=>x.id===currentPlayerId),pan
 
 
 
-function teams(){
-  let t=load(LTEAM,null);
-  if(!t){
-    t=["TJ Město Zbiroh"];
-    save(LTEAM,t);
-    localStorage.setItem(LCURTEAM,"TJ Město Zbiroh");
-  }
-  return t;
-}
-function currentTeam(){
-  let c=localStorage.getItem(LCURTEAM);
-  if(!c){
-    c=teams()[0];
-    localStorage.setItem(LCURTEAM,c);
-  }
-  return c;
-}
-function selectTeam(t){
-  localStorage.setItem(LCURTEAM,t);
-  renderTeams();
-}
-function showAddTeam(){
-  let b=document.getElementById("addTeamBox");
-  if(b)b.classList.toggle("hidden");
-}
-function addTeam(){
-  let n=pretty(document.getElementById("newTeamName").value);
-  if(!n)return;
-  let full=n.startsWith("TJ Město Zbiroh") ? n : "TJ Město Zbiroh "+n;
-  let t=teams();
-  if(!t.includes(full))t.push(full);
-  save(LTEAM,t);
-  localStorage.setItem(LCURTEAM,full);
-  document.getElementById("newTeamName").value="";
-  document.getElementById("addTeamBox").classList.add("hidden");
-  renderTeams();
-}
+function teams(){return tcUiTeams().map(t=>t.name)}
+function currentTeam(){return tcUiActiveTeam().name}
+function selectTeam(t){tcUiSelectTeam(t)}
+function showAddTeam(){let b=document.getElementById("addTeamBox");if(b)b.classList.toggle("hidden")}
+function addTeam(){tcUiAddTeam()}
 function renderTeams(){
-  let sel=document.getElementById("teamSelect");
-  if(!sel)return;
-  let t=teams();
-  let c=currentTeam();
-  sel.innerHTML=t.map(x=>`<option value="${esc(x)}" ${x===c?"selected":""}>${esc(x)}</option>`).join("");
-  let lab=document.getElementById("currentTeamLabel");
-  if(lab)lab.textContent=c;
+  let box=document.getElementById("teamSwitchBox");
+  if(!box)return;
+  let teams=tcUiTeams();
+  let active=tcUiActiveTeamId();
+  if(tcUiIsOwner()){
+    box.innerHTML=`<div class="teamSwitch">
+      <div class="label">Aktivní tým</div>
+      <div class="rowTeam">
+        <select id="teamSelect" onchange="tcUiSelectTeam(this.value)">
+          ${teams.map(t=>`<option value="${esc(t.id)}" ${t.id===active?'selected':''}>${esc(t.name)}</option>`).join("")}
+        </select>
+      </div>
+      <div class="rowTeam">
+        <input id="newTeamName" placeholder="Nový tým, např. U19">
+        <button class="btn" onclick="tcUiAddTeam()">+ tým</button>
+      </div>
+    </div>`;
+  }else{
+    box.innerHTML=`<div class="teamSwitch"><div class="label">Tým</div><div class="teamName">${esc(tcUiActiveTeam().name)}</div></div>`;
+  }
 }
 
 let activeDrawerIndex=null;
