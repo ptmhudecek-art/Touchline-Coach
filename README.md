@@ -1,18 +1,14 @@
-# Touchline Coach TC 1.6.2a – Team Switch UI Only
+# Touchline Coach TC 1.6.2b – Add Teams Safe
 
-Opravená bezpečná verze.
-
-Přidáno:
-- přepínač týmů v části Tým
-- + tým v části Tým
-- ukládání seznamu týmů a aktivního týmu pro další kroky
+Oprava:
+- v části Tým je vidět Aktivní tým
+- jde přidat nový tým
+- nový tým se objeví v seznamu
 
 Důležité:
-- NESAHÁ na players(), trainings, attendance, staff, trezor.
-- Home beze změny.
-- Kalendář beze změny.
-- RT beze změny.
-- Žádná izolace dat zatím neprobíhá.
+- pouze UI/seznam týmů
+- žádné oddělení dat
+- nesahá na kalendář, hráče, docházku, RT ani trezor
 
 Summary:
-TC 1.6.2a Team Switch UI Only
+TC 1.6.2b Add Teams Safe
