@@ -74,6 +74,75 @@ main{padding-bottom:calc(82px + env(safe-area-inset-bottom,0px))}
 nav{padding-bottom:env(safe-area-inset-bottom,0px)}
 nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
 
+
+/* --- TC 1.5.1 live home card --- */
+.premiumTitle.tcEventTitle{
+  align-items:center;
+  gap:16px;
+}
+.liveDateCard{
+  width:62px;
+  min-width:62px;
+  height:72px;
+  border-radius:16px;
+  overflow:hidden;
+  background:#f4f7f2;
+  border:1px solid rgba(255,255,255,.25);
+  box-shadow:0 12px 28px rgba(0,0,0,.35), 0 0 18px rgba(139,255,61,.12);
+  display:flex;
+  flex-direction:column;
+  text-align:center;
+}
+.liveDateCard .dateDow{
+  background:#8bff3d;
+  color:#061006;
+  font-size:13px;
+  font-weight:900;
+  padding:7px 0 5px;
+  letter-spacing:.08em;
+}
+.liveDateCard .dateNum{
+  flex:1;
+  color:#071009;
+  font-size:30px;
+  font-weight:950;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.liveDateCard.todayEvent{
+  border-color:#8bff3d;
+  box-shadow:0 0 0 2px rgba(139,255,61,.28),0 0 26px rgba(139,255,61,.38);
+}
+.eventTextBlock{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+}
+.eventTextBlock .eventHeading{
+  font-size:22px;
+  font-weight:950;
+  text-transform:uppercase;
+  color:#f3f5f7;
+}
+.eventTextBlock .eventSub{
+  color:#8bff3d;
+  font-size:13px;
+  font-weight:900;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.countLine.softExc .roundIcon{
+  background:rgba(255,184,77,.18);
+  color:#ffc36b;
+  border:1px solid rgba(255,184,77,.35);
+}
+.countLine.softExc .num{color:#ffc36b}
+.roundIcon.question{
+  background:#333a44;
+  color:#d7dde5;
+}
+
 </style>
 
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=12">
@@ -119,14 +188,23 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
   </div>
   <div class="homeGrid">
     <div class="premiumCard" onclick="openNearestTrainingDetail()" style="cursor:pointer">
-      <div class="premiumTitle"><div class="premiumIcon">📅</div><div>Přehled pro trénink</div></div>
+      <div class="premiumTitle tcEventTitle">
+        <div class="liveDateCard" id="liveDateCard">
+          <div class="dateDow" id="liveDateDow">--</div>
+          <div class="dateNum" id="liveDateNum">--</div>
+        </div>
+        <div class="eventTextBlock">
+          <div class="eventSub">Kalendář</div>
+          <div class="eventHeading">Nejbližší trénink</div>
+        </div>
+      </div>
       <div class="trainInfo">
-        <h3>Nejbližší trénink</h3>
+        
         <div class="infoLine"><span class="ico">◷</span><span id="premiumTime">čas nezadán</span></div>
         <div class="infoLine"><span class="ico">⌖</span><span id="premiumPlace">místo nezadáno</span></div>
         <div class="countLine"><div class="label"><span class="roundIcon">✓</span>Přijde</div><div class="num" id="premiumYes">0</div></div>
-        <div class="countLine orange"><div class="label"><span class="roundIcon orange">●</span>Omluveno</div><div class="num" id="premiumExc">0</div></div>
-        <div class="countLine gray"><div class="label"><span class="roundIcon gray">?</span>Bez reakce</div><div class="num" id="premiumNone">0</div></div>
+        <div class="countLine softExc"><div class="label"><span class="roundIcon">•</span>Omluveno</div><div class="num" id="premiumExc">0</div></div>
+        <div class="countLine gray"><div class="label"><span class="roundIcon question">?</span>Nereaguje</div><div class="num" id="premiumNone">0</div></div>
         <button class="bigGreenBtn" onclick="event.stopPropagation();openNearestTrainingDetail()">Detail tréninku</button>
       </div>
     </div>
@@ -757,8 +835,26 @@ function renderPremiumHome(){
   let t=trs(),key=nearestTrainingKey();
   let tr=key?t[key]:null;
   let time=document.getElementById('premiumTime'),place=document.getElementById('premiumPlace'),badge=document.getElementById('heroBadge');
+  let dDow=document.getElementById('liveDateDow'),dNum=document.getElementById('liveDateNum'),dCard=document.getElementById('liveDateCard');
+
   if(time)time.textContent=tr?(tr.time||'čas nezadán'):'';
   if(place)place.textContent=tr?(tr.place||'místo nezadáno'):'';
+
+  if(dDow&&dNum&&dCard){
+    dCard.classList.remove('todayEvent');
+    if(tr&&key){
+      let parts=key.split('-').map(Number);
+      let dt=new Date(parts[0],parts[1]-1,parts[2]);
+      let days=['NE','PO','ÚT','ST','ČT','PÁ','SO'];
+      dDow.textContent=days[dt.getDay()];
+      dNum.textContent=String(dt.getDate());
+      if(key===iso(new Date()))dCard.classList.add('todayEvent');
+    }else{
+      dDow.textContent='--';
+      dNum.textContent='--';
+    }
+  }
+
   if(badge){
     if(tr&&key){
       let today=iso(new Date());
@@ -768,6 +864,7 @@ function renderPremiumHome(){
       badge.textContent='Přehled';
     }
   }
+
   let s={yes:0,injury:0,work:0,other:0,none:0},a=att();
   players().forEach(p=>s[a[p.id]||'none']++);
   let exc=s.injury+s.work+s.other;

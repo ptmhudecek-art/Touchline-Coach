@@ -1,21 +1,19 @@
-# Touchline Coach TC 1.5
+# Touchline Coach TC 1.5.1 – Home Card
 
-Úpravy:
-- název webu bez "stabilní"
-- Home: "Nejbližší trénink"
-- záložka "Přístup" místo "Hráč"
-- jedno pole pro přístupový kód
-  - HR-* = hráčka
-  - RT-* = realizační tým
-- nové hráčky dostávají kód HR-ZBIROH-XXXX
-- RT dostává kód RT-ZBIROH-XXXX
-- iPhone safe-area pro spodní lištu
+Úpravy Home:
+- místo textu "Přehled pro trénink" je živá kalendářová ikonka
+- ikonka ukazuje den v týdnu a datum nejbližšího tréninku
+- vedle ikonky je "Nejbližší trénink"
+- pod tím zůstává čas a místo
+- pod tím graficky Přijdu / Omluveno / Nereaguje
+- omluvenka je vizuálně jemnější
+- dnešní trénink je v kalendářové ikonce zvýrazněný limetkově
 
-Poznámka:
-- Data jsou zatím stále lokální v zařízení.
-- Sdílený tým / cloud je další velký krok.
+Zbytek:
+- vychází z TC 1.5
+- ukládání, hráči, RT a PWA struktura beze změny
 
 Nasazení:
-- přes GitHub Desktop přepsat složku repozitáře obsahem ZIPu
+- přes GitHub Desktop přepsat lokální složku obsahem ZIPu
 - Commit
 - Push origin
