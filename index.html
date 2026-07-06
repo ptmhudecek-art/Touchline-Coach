@@ -580,6 +580,66 @@ function renderPlayerPanel(){let p=players().find(x=>x.id===currentPlayerId),pan
 
 
 
+
+/* --- TC 1.6.2d Add Teams Real Index Fix ---
+Pouze UI seznam týmů + aktivní tým.
+Nesahá na hráče, tréninky, docházku, RT ani trezor.
+*/
+const TC_UI_TEAMS_KEY = "tc_ui_teams_v01";
+const TC_UI_ACTIVE_TEAM_KEY = "tc_ui_active_team_v01";
+
+function tcUiTeams(){
+  let t=load(TC_UI_TEAMS_KEY,null);
+  if(!t||!Array.isArray(t)||!t.length){
+    t=[{id:"zbiroh_default",name:"TJ Město Zbiroh"}];
+    save(TC_UI_TEAMS_KEY,t);
+  }
+  return t;
+}
+function tcUiActiveTeamId(){
+  let id=localStorage.getItem(TC_UI_ACTIVE_TEAM_KEY);
+  let teams=tcUiTeams();
+  if(!id||!teams.find(t=>t.id===id)){
+    id=teams[0].id;
+    localStorage.setItem(TC_UI_ACTIVE_TEAM_KEY,id);
+  }
+  return id;
+}
+function tcUiActiveTeam(){
+  let id=tcUiActiveTeamId();
+  return tcUiTeams().find(t=>t.id===id)||tcUiTeams()[0];
+}
+function tcUiMakeTeamId(name){
+  let base=String(name||"tym").toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^a-z0-9]+/g,"_").replace(/^_+|_+$/g,"");
+  return "team_"+(base||"tym")+"_"+Date.now().toString(36);
+}
+function tcUiSelectTeam(id){
+  let teams=tcUiTeams();
+  if(!teams.find(t=>t.id===id))return;
+  localStorage.setItem(TC_UI_ACTIVE_TEAM_KEY,id);
+  renderTeams();
+}
+function tcUiAddTeam(){
+  let inp=document.getElementById("newTeamName");
+  let n=inp?pretty(inp.value):"";
+  if(!n){
+    alert("Zadej název týmu.");
+    return;
+  }
+  let full=n.startsWith("TJ Město Zbiroh") ? n : "TJ Město Zbiroh "+n;
+  let teams=tcUiTeams();
+  let id=tcUiMakeTeamId(full);
+  teams.push({id:id,name:full});
+  save(TC_UI_TEAMS_KEY,teams);
+  localStorage.setItem(TC_UI_ACTIVE_TEAM_KEY,id);
+  if(inp)inp.value="";
+  renderTeams();
+}
+function tcUiIsOwner(){return true}
+
+
 function teams(){return tcUiTeams().map(t=>t.name)}
 function currentTeam(){return tcUiActiveTeam().name}
 function selectTeam(t){tcUiSelectTeam(t)}
