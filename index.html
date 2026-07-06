@@ -151,6 +151,14 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
 .teamSwitch select{flex:1;background:#0d0f13;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:16px}
 .teamSwitch .teamName{font-size:18px;font-weight:900;color:#8bff3d;margin-top:6px}
 
+
+/* --- TC 1.6.3a Team Snapshot Switch UI --- */
+.teamSwitch{background:#11141a;border:1px solid var(--border);border-radius:14px;padding:12px;margin-top:8px}
+.teamSwitch .label{color:var(--muted);font-size:12px;text-transform:uppercase;font-weight:800;letter-spacing:.06em}
+.teamSwitch .rowTeam{display:flex;gap:8px;align-items:center;margin-top:8px}
+.teamSwitch select{flex:1;background:#0d0f13;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:16px}
+.teamSwitch .teamName{font-size:18px;font-weight:900;color:#8bff3d;margin-top:6px}
+
 </style>
 
 <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=12">
@@ -571,6 +579,95 @@ function renderPlayerPanel(){let p=players().find(x=>x.id===currentPlayerId),pan
 
 
 
+
+/* --- TC 1.6.3a Team Snapshot Switch ---
+Bez přepisu datových funkcí.
+Aplikace stále používá původní LP/LA/LT/LS/LD/LE.
+Při přepnutí týmu:
+1) uloží se aktuální data aktivního týmu
+2) načtou se data vybraného týmu do původních klíčů
+3) render()
+*/
+const TC_TEAM_SNAPSHOTS_KEY = "tc_team_snapshots_v01";
+
+function tcReadCurrentSnapshot(){
+  return {
+    players:load(LP,[]),
+    attendance:load(LA,{}),
+    trainings:load(LT,{}),
+    staff:load(LS,[]),
+    drawers:load(LD,[]),
+    exercises:load(LE,{})
+  };
+}
+function tcEmptySnapshot(){
+  return {players:[],attendance:{},trainings:{},staff:[],drawers:[],exercises:{}};
+}
+function tcSnapshots(){
+  return load(TC_TEAM_SNAPSHOTS_KEY,{});
+}
+function tcSaveSnapshots(s){
+  save(TC_TEAM_SNAPSHOTS_KEY,s);
+}
+function tcSaveActiveTeamSnapshot(){
+  let id=tcUiActiveTeamId();
+  let snaps=tcSnapshots();
+  snaps[id]=tcReadCurrentSnapshot();
+  tcSaveSnapshots(snaps);
+}
+function tcLoadSnapshotToApp(data){
+  data=data||tcEmptySnapshot();
+  save(LP,data.players||[]);
+  save(LA,data.attendance||{});
+  save(LT,data.trainings||{});
+  save(LS,data.staff||[]);
+  save(LD,data.drawers||[]);
+  save(LE,data.exercises||{});
+}
+function tcEnsureSnapshotForActiveTeam(){
+  let id=tcUiActiveTeamId();
+  let snaps=tcSnapshots();
+  if(!snaps[id]){
+    snaps[id]=tcReadCurrentSnapshot();
+    tcSaveSnapshots(snaps);
+  }
+}
+function tcSwitchTeamSnapshot(id){
+  let teams=tcUiTeams();
+  if(!teams.find(t=>t.id===id))return;
+  tcSaveActiveTeamSnapshot();
+  localStorage.setItem(TC_UI_ACTIVE_TEAM_KEY,id);
+  let snaps=tcSnapshots();
+  if(!snaps[id]){
+    snaps[id]=tcEmptySnapshot();
+    tcSaveSnapshots(snaps);
+  }
+  tcLoadSnapshotToApp(snaps[id]);
+  selectedDate=null;
+  render();
+}
+function tcAddTeamSnapshot(){
+  let inp=document.getElementById("newTeamName");
+  let n=inp?pretty(inp.value):"";
+  if(!n)return;
+  tcSaveActiveTeamSnapshot();
+  let full=n.startsWith("TJ Město Zbiroh") ? n : "TJ Město Zbiroh "+n;
+  let teams=tcUiTeams();
+  let id=tcUiMakeTeamId(full);
+  teams.push({id:id,name:full});
+  save(TC_UI_TEAMS_KEY,teams);
+  let snaps=tcSnapshots();
+  snaps[id]=tcEmptySnapshot();
+  tcSaveSnapshots(snaps);
+  localStorage.setItem(TC_UI_ACTIVE_TEAM_KEY,id);
+  tcLoadSnapshotToApp(snaps[id]);
+  if(inp)inp.value="";
+  selectedDate=null;
+  render();
+}
+function tcUiSelectTeam(id){tcSwitchTeamSnapshot(id)}
+function tcUiAddTeam(){tcAddTeamSnapshot()}
+
 function teams(){return tcUiTeams().map(t=>t.name)}
 function currentTeam(){return tcUiActiveTeam().name}
 function selectTeam(t){tcUiSelectTeam(t)}
@@ -602,11 +699,12 @@ function renderTeams(){
 let activeDrawerIndex=null;
 
 function drawers(){
-  let d=load(LD,null);
-  if(!d){
-    d=["Aktivace","Bagovky","Dovednosti","Zakončení","Hry"];
-    save(LD,d);
+  let raw=localStorage.getItem(LD);
+  if(raw!==null){
+    try{return JSON.parse(raw)}catch(e){return []}
   }
+  let d=["Aktivace","Bagovky","Dovednosti","Zakončení","Hry"];
+  save(LD,d);
   return d;
 }
 function setDrawers(d){save(LD,d)}
@@ -701,8 +799,11 @@ function renderExercises(){
 }
 
 function staff(){
-  let s=load(LS,null);
-  if(!s){
+  let raw=localStorage.getItem(LS);
+  let s;
+  if(raw!==null){
+    try{s=JSON.parse(raw)}catch(e){s=[]}
+  }else{
     s=[
       {id:"pavel",name:"Pavel",role:"admin",code:"RT-ZBIROH-"+code4()},
       {id:"kuba",name:"Kuba",role:"coach",code:"RT-ZBIROH-"+code4()},
@@ -711,9 +812,7 @@ function staff(){
     save(LS,s);
   }
   let changed=false;
-  s.forEach(x=>{
-    if(!x.code){x.code="RT-ZBIROH-"+code4();changed=true;}
-  });
+  s.forEach(x=>{if(!x.code){x.code="RT-ZBIROH-"+code4();changed=true;}});
   if(changed)save(LS,s);
   return s;
 }
@@ -864,6 +963,7 @@ function restore(){
   if(id&&players().find(p=>p.id===id))currentPlayerId=id;
   let sid=localStorage.getItem(LRT);
   if(sid&&staff().find(s=>s.id===sid))currentStaffId=sid;
+  if(typeof tcEnsureSnapshotForActiveTeam === 'function')tcEnsureSnapshotForActiveTeam();
 }
 function render(){try{renderCal();renderPlayers();renderAttendance();renderSummary();renderHomeTraining();renderPremiumHome();setupCoachPhoto();renderPlayerPanel();renderVault();renderStaff();renderTeams();if(activeDrawerIndex!==null)renderExercises()}catch(e){console.error(e)}}
 restore();render();
