@@ -1,12 +1,17 @@
-# Touchline Coach v1.3.1 – Home Detail Fix CLEAN
+# Touchline Coach v1.4 – RT kódy
 
-Oprava bez duplicit:
-- Home ukazuje nejbližší trénink.
-- Klik na kartu Přehled pro trénink otevře detail nejbližšího tréninku.
-- Tlačítko Detail tréninku otevře přímo editor daného tréninku v kalendáři.
-- Funkce renderHomeTraining a renderPremiumHome jsou v souboru jen jednou.
-- Struktura public/ zůstává pro Vite/Vercel.
+Přidáno:
+- členové realizačního týmu mají vlastní RT kód
+- přidání RT automaticky generuje kód
+- reset kódu
+- kopírování RT kódů
+- jednoduché přihlášení RT přes jméno + kód
+
+Poznámka:
+- Tohle je jednoduchá lokální verze bez práv a bez cloudu.
+- Sdílení dat mezi různými zařízeními bude až přes Supabase/cloud.
 
 Nasazení:
-- přepsat lokální složku repozitáře tímto obsahem
-- GitHub Desktop: Commit → Push origin
+- přes GitHub Desktop přepsat lokální složku obsahem ZIPu
+- Commit
+- Push origin

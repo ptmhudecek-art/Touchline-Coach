@@ -227,20 +227,43 @@ body.home-premium #home{max-width:none}
 <section id="staff" class="page">
   <div class="card">
     <h2>RT</h2>
-    <p class="small">Realizační tým. Neřeší svoji docházku, jen vidí trénink a podle role může upravovat.</p>
+    <p class="small">Realizační tým. Přístup je přes jméno a kód, podobně jako u hráčů.</p>
+  </div>
+
+  <div class="card">
+    <h3>Přihlášení RT</h3>
+    <div class="row">
+      <input id="staffLoginName" placeholder="Jméno člena RT">
+      <input id="staffLoginCode" placeholder="RT kód">
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" onclick="staffLogin()">Přihlásit RT</button>
+      <button class="btn2" onclick="staffLogout()">Odhlásit RT</button>
+    </div>
+    <div id="staffLoginMsg" class="small"></div>
+    <div id="staffLoggedBox" class="small" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <h3>Přidat člena RT</h3>
     <div class="row">
       <input id="staffName" placeholder="Jméno člena RT">
       <select id="staffRole" style="background:#0d0f13;color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px">
-        <option value="admin">Administrátor</option>
-        <option value="coach">Trenér - může upravovat</option>
-        <option value="view">RT - pouze náhled</option>
+        <option value="admin">Hlavní trenér</option>
+        <option value="coach">Asistent trenéra</option>
+        <option value="view">RT - náhled</option>
       </select>
       <button class="btn" onclick="addStaff()">Přidat</button>
     </div>
   </div>
+
   <div class="card">
-    <h3>Členové a práva</h3>
+    <h3>Členové a přístupové kódy</h3>
     <div id="staffList"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn2" onclick="copyStaffCodes()">Kopírovat RT kódy</button>
+    </div>
+    <pre id="staffCopyBox" class="small"></pre>
   </div>
 </section>
 
@@ -257,8 +280,8 @@ body.home-premium #home{max-width:none}
 </nav>
 
 <script>
-const LP="tc_players_v05", LA="tc_attendance_v05", LT="tc_trainings_v08", LL="tc_logged_player_stable", LD="tc_vault_drawers_v01", LS="tc_staff_v01", LE="tc_vault_exercises_v01", LTEAM="tc_teams_v01", LCURTEAM="tc_current_team_v01";
-let viewDate=new Date(), selectedDate=null, currentPlayerId=null;
+const LP="tc_players_v05", LA="tc_attendance_v05", LT="tc_trainings_v08", LL="tc_logged_player_stable", LRT="tc_logged_staff_v01", LD="tc_vault_drawers_v01", LS="tc_staff_v01", LE="tc_vault_exercises_v01", LTEAM="tc_teams_v01", LCURTEAM="tc_current_team_v01";
+let viewDate=new Date(), selectedDate=null, currentPlayerId=null, currentStaffId=null;
 
 function tab(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));document.getElementById('nav-'+id).classList.add('active');render();}
 function toggleDetail(){document.getElementById('homeDetail').classList.toggle('hidden');}
@@ -549,22 +572,27 @@ function staff(){
   let s=load(LS,null);
   if(!s){
     s=[
-      {id:"pavel",name:"Pavel",role:"admin"},
-      {id:"kuba",name:"Kuba",role:"coach"},
-      {id:"rt",name:"Realizák",role:"view"}
+      {id:"pavel",name:"Pavel",role:"admin",code:"RT-ZBIROH-"+code4()},
+      {id:"kuba",name:"Kuba",role:"coach",code:"RT-ZBIROH-"+code4()},
+      {id:"rt",name:"Realizák",role:"view",code:"RT-ZBIROH-"+code4()}
     ];
     save(LS,s);
   }
+  let changed=false;
+  s.forEach(x=>{
+    if(!x.code){x.code="RT-ZBIROH-"+code4();changed=true;}
+  });
+  if(changed)save(LS,s);
   return s;
 }
 function setStaff(s){save(LS,s)}
-function roleText(r){return r==="admin"?"Administrátor":r==="coach"?"Trenér - může upravovat":"RT - pouze náhled"}
+function roleText(r){return r==="admin"?"Hlavní trenér":r==="coach"?"Asistent trenéra":"RT - náhled"}
 function addStaff(){
   let n=pretty(document.getElementById("staffName").value);
   if(!n)return;
   let r=document.getElementById("staffRole").value;
   let s=staff();
-  s.push({id:Date.now()+"_"+Math.random().toString(16).slice(2),name:n,role:r});
+  s.push({id:Date.now()+"_"+Math.random().toString(16).slice(2),name:n,role:r,code:"RT-ZBIROH-"+code4()});
   setStaff(s);
   document.getElementById("staffName").value="";
   renderStaff();
@@ -579,7 +607,8 @@ function renderStaff(){
   let box=document.getElementById("staffList");
   if(!box)return;
   let s=staff();
-  box.innerHTML="<table><tr><th>Jméno</th><th>Role</th><th></th></tr>"+s.map((x,i)=>`<tr><td>${esc(x.name)}</td><td>${roleText(x.role)}</td><td><button class=danger onclick="deleteStaff(${i})">Smazat</button></td></tr>`).join("")+"</table>";
+  box.innerHTML="<table><tr><th>Jméno</th><th>Role</th><th>Kód</th><th></th></tr>"+s.map((x,i)=>`<tr><td>${esc(x.name)}</td><td>${roleText(x.role)}</td><td><code>${esc(x.code)}</code></td><td><button class=btn2 onclick="resetStaffCode(${i})">Nový kód</button> <button class=danger onclick="deleteStaff(${i})">Smazat</button></td></tr>`).join("")+"</table>";
+  renderStaffLoginBox();
 }
 
 
@@ -601,6 +630,48 @@ function openNearestTrainingDetail(){
     let editor=document.getElementById('editor');
     if(editor)editor.scrollIntoView({behavior:'smooth',block:'start'});
   },80);
+}
+
+
+function resetStaffCode(i){
+  let s=staff();
+  if(!s[i])return;
+  s[i].code="RT-ZBIROH-"+code4();
+  setStaff(s);
+  renderStaff();
+}
+function copyStaffCodes(){
+  let text=staff().map(x=>x.name+" | "+roleText(x.role)+" | "+x.code).join("\n");
+  let box=document.getElementById("staffCopyBox");
+  if(box)box.textContent=text;
+  if(navigator.clipboard)navigator.clipboard.writeText(text);
+}
+function staffLogin(){
+  let name=norm(document.getElementById("staffLoginName").value);
+  let code=document.getElementById("staffLoginCode").value.trim().toUpperCase();
+  let x=staff().find(s=>norm(s.name)===name && String(s.code).toUpperCase()===code);
+  let msg=document.getElementById("staffLoginMsg");
+  if(!x){
+    if(msg)msg.textContent="RT nenalezen nebo špatný kód.";
+    return;
+  }
+  currentStaffId=x.id;
+  localStorage.setItem(LRT,x.id);
+  if(msg)msg.textContent="Přihlášeno.";
+  renderStaffLoginBox();
+}
+function staffLogout(){
+  currentStaffId=null;
+  localStorage.removeItem(LRT);
+  let msg=document.getElementById("staffLoginMsg");
+  if(msg)msg.textContent="Odhlášeno.";
+  renderStaffLoginBox();
+}
+function renderStaffLoginBox(){
+  let box=document.getElementById("staffLoggedBox");
+  if(!box)return;
+  let x=staff().find(s=>s.id===currentStaffId);
+  box.innerHTML=x?`Přihlášen: <b>${esc(x.name)}</b> • ${roleText(x.role)}`:"Nikdo z RT není přihlášen.";
 }
 
 function renderMiniCal(){
@@ -637,7 +708,12 @@ function pickCoachPhoto(){let inp=document.getElementById('coachPhotoInput');if(
 function loadCoachPhoto(){let data=localStorage.getItem('tc_coach_photo_v01'),img=document.getElementById('coachPhotoImg'),fb=document.getElementById('coachPhotoFallback');if(!img||!fb)return;if(data){img.src=data;img.classList.remove('hidden');fb.classList.add('hidden')}else{img.classList.add('hidden');fb.classList.remove('hidden')}}
 function setupCoachPhoto(){let inp=document.getElementById('coachPhotoInput');if(!inp||inp.dataset.bound==='1')return;inp.dataset.bound='1';inp.addEventListener('change',function(){let f=inp.files&&inp.files[0];if(!f)return;let r=new FileReader();r.onload=function(){localStorage.setItem('tc_coach_photo_v01',r.result);loadCoachPhoto()};r.readAsDataURL(f)});loadCoachPhoto();}
 
-function restore(){let id=localStorage.getItem(LL);if(id&&players().find(p=>p.id===id))currentPlayerId=id}
+function restore(){
+  let id=localStorage.getItem(LL);
+  if(id&&players().find(p=>p.id===id))currentPlayerId=id;
+  let sid=localStorage.getItem(LRT);
+  if(sid&&staff().find(s=>s.id===sid))currentStaffId=sid;
+}
 function render(){try{renderCal();renderPlayers();renderAttendance();renderSummary();renderHomeTraining();renderPremiumHome();setupCoachPhoto();renderPlayerPanel();renderVault();renderStaff();renderTeams();if(activeDrawerIndex!==null)renderExercises()}catch(e){console.error(e)}}
 restore();render();
 </script>
