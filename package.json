@@ -1,6 +1,6 @@
 {
-  "name": "touchline-coach-tc-1-6-1-team-data-model",
-  "version": "1.6.1",
+  "name": "touchline-coach-tc-1-6-2-team-switch-owner",
+  "version": "1.6.2",
   "private": true,
   "type": "module",
   "scripts": {
