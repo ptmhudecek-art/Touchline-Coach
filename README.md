@@ -1,11 +1,9 @@
-# Touchline Coach TC 1.6.2 – Team Switch Owner
+# Touchline Coach TC 1.5.2
 
-Přidáno:
-- přepínač týmů v části Tým
-- + tým v části Tým
-- nový tým vzniká jako prázdný prostor
-- Home beze změny
-- RT beze změny
+Úprava karty Přístup:
+- ponechán nadpis „Přístup“
+- text zkrácen na „Zadej přístupový kód.“
+- „Ruční přihlášení hráčky“ změněno na „Ruční přihlášení“
 
-Summary:
-TC 1.6.2 Team Switch Owner
+V souladu s TCDG:
+Neříkej uživateli to, co aplikace ví sama.
