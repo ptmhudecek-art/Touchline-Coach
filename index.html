@@ -413,7 +413,7 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
 const LP="tc_players_v05", LA="tc_attendance_v05", LT="tc_trainings_v08", LL="tc_logged_player_stable", LRT="tc_logged_staff_v01", LD="tc_vault_drawers_v01", LS="tc_staff_v01", LE="tc_vault_exercises_v01", LTEAM="tc_teams_v01", LCURTEAM="tc_current_team_v01";
 let viewDate=new Date(), selectedDate=null, currentPlayerId=null, currentStaffId=null;
 
-function tab(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));document.getElementById('nav-'+id).classList.add('active');render();}
+function tab(id){setTimeout(tcIdentityInitFix,120);document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(id).classList.add('active');document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));document.getElementById('nav-'+id).classList.add('active');render();}
 function toggleDetail(){document.getElementById('homeDetail').classList.toggle('hidden');}
 function load(k,def){return JSON.parse(localStorage.getItem(k)||JSON.stringify(def))}
 function save(k,v){localStorage.setItem(k,JSON.stringify(v))}
@@ -651,6 +651,21 @@ function tcIdentityRoleForUser(){
 function tcRefreshIdentity(){let i=tcSaveTeamIdentity();if(typeof tcCloudPushNow==="function")setTimeout(()=>tcCloudPushNow("identity"),300);return i}
 
 /* --- TC 3.0.1 Identity Status UI --- */
+
+/* --- TC 3.0.2 Identity Init Fix --- */
+function tcIdentityInitFix(){
+  try{
+    if(typeof tcSaveTeamIdentity==="function")tcSaveTeamIdentity();
+    if(typeof tcRenderIdentityPanel==="function")tcRenderIdentityPanel();
+  }catch(err){
+    let box=document.getElementById("identityPanel");
+    if(box)box.textContent="Identity chyba: "+(err&&err.message?err.message:err);
+  }
+}
+document.addEventListener("DOMContentLoaded",()=>setTimeout(tcIdentityInitFix,250));
+setTimeout(tcIdentityInitFix,700);
+
+
 function tcIdentityNameById(list,id){
   let x=(list||[]).find(i=>i.id===id);
   return x ? x.name : "";
@@ -677,6 +692,23 @@ function tcRenderIdentityPanel(){
     "<div><b>Asistenti / RT náhled:</b> "+assistants+"</div>"+
     "<div><b>Hráči:</b> "+p.length+"</div>";
 }
+
+
+
+/* Identity panel fallback safe */
+const tcRenderIdentityPanelOriginal = tcRenderIdentityPanel;
+tcRenderIdentityPanel = function(){
+  try{
+    tcRenderIdentityPanelOriginal();
+  }catch(err){
+    let box=document.getElementById("identityPanel");
+    if(!box)return;
+    let team=(typeof tcUiActiveTeam==="function")?tcUiActiveTeam():{id:"zbiroh_default",name:"TJ Město Zbiroh"};
+    let owner=(typeof tcOwnerId==="function")?tcOwnerId():"own_local";
+    let role=(typeof tcPermissionsLabel==="function")?tcPermissionsLabel():"Owner";
+    box.innerHTML="<div><b>Role:</b> "+role+"</div><div><b>Owner ID:</b> <code>"+owner+"</code></div><div><b>Aktivní tým:</b> "+(team.name||"Tým")+"</div>";
+  }
+};
 
 
 function tcRenderIdentityStatus(){let e=document.getElementById("identityStatus");if(!e||typeof tcLoadTeamIdentity!=="function")return;let i=tcLoadTeamIdentity();e.textContent="Identity: "+(i.teamName||"Tým")+" | hlavní trenér: "+(i.mainCoachId||"není")}
@@ -1290,7 +1322,7 @@ function tcLoadTeamFromCloud(){
 
 
 function restore(){setTimeout(tcRenderCloudAutoSaveState,0);if(typeof tcOwnerId==='function')tcOwnerId();tcMigrateDefaultKey(LP,[]);tcMigrateDefaultKey(LA,{});tcMigrateDefaultKey(LT,{});tcMigrateDefaultKey(LS,null);tcMigrateDefaultKey(LD,null);tcMigrateDefaultKey(LE,{});let id=localStorage.getItem(LL);if(id&&players().find(p=>p.id===id))currentPlayerId=id;let sid=localStorage.getItem(LRT);if(sid&&staff().find(s=>s.id===sid))currentStaffId=sid}
-function render(){renderTeams();renderPlayers();renderAttendance();renderSummary();renderCal();renderPremiumHome();renderVault();renderStaff();renderPlayerPanel();tcApplyPermissionsUI()}
+function render(){renderTeams();renderPlayers();renderAttendance();renderSummary();renderCal();renderPremiumHome();renderVault();renderStaff();renderPlayerPanel();tcApplyPermissionsUI();tcIdentityInitFix()}
 restore();render();
 </script>
 
