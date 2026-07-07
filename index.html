@@ -283,7 +283,12 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
       <button class="btn" onclick="accessLogin()">Přihlásit kódem</button>
       <button class="btn2" onclick="accessLogout()">Odhlásit</button>
     </div>
-    <div id="accessMsg" class="small"></div><div id="permissionStatus" class="small"></div><div id="identityStatus" class="small"></div>
+    <div id="accessMsg" class="small"></div><div id="permissionStatus" class="small"></div>
+
+    <div class="row" style="margin-top:8px">
+      <button class="btn2" onclick="tcSwitchToOwner()">👑 Přepnout na OWNER</button>
+    </div>
+<div id="identityStatus" class="small"></div>
   </div>
 
   <div class="card">
@@ -740,6 +745,37 @@ function tcApplyPermissionsUI(){
   let staffEdit=document.getElementById("staffEditBox");if(staffEdit)staffEdit.classList.toggle("hidden",!tcCan("staff","edit"));
   ["trTime","trPlace"].forEach(id=>{let x=document.getElementById(id);if(x)x.disabled=!tcCan("calendar","edit")});
   ["drawerName","exerciseName","exercisePhoto","exerciseVideo"].forEach(id=>{let x=document.getElementById(id);if(x)x.disabled=!tcCan("vault","edit")});
+}
+
+
+
+/* --- TC 3.0.3 Owner Switch ---
+Návrat do Owner režimu na vlastním zařízení.
+Zachová aktivní tým, jen vyčistí přihlášení role.
+*/
+function tcSwitchToOwner(){
+  currentPlayerId=null;
+  currentStaffId=null;
+  localStorage.removeItem(LL);
+  localStorage.removeItem(LRT);
+
+  let access=document.getElementById("accessCode");
+  if(access)access.value="";
+  let loginName=document.getElementById("loginName");
+  if(loginName)loginName.value="";
+  let loginSecret=document.getElementById("loginSecret");
+  if(loginSecret)loginSecret.value="";
+  let staffName=document.getElementById("staffLoginName");
+  if(staffName)staffName.value="";
+  let staffCode=document.getElementById("staffLoginCode");
+  if(staffCode)staffCode.value="";
+
+  let msg=document.getElementById("accessMsg");
+  if(msg)msg.textContent="Přepnuto na OWNER.";
+
+  if(typeof tcSaveTeamIdentity==="function")tcSaveTeamIdentity();
+  render();
+  tab("login");
 }
 
 
