@@ -301,7 +301,7 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
     <h3>Cloud</h3>
     <p class="small">TC 2.0.0 Cloud Bootstrap. Ověření spojení s Firebase.</p>
     <div class="row">
-      <button class="btn2" onclick="tcCheckCloud()">Ověřit cloud</button><button class="btn" onclick="tcSaveTeamToCloud()">☁ Uložit tým do cloudu</button><button class="btn2" onclick="tcLoadTeamFromCloud()">☁ Načíst tým z cloudu</button>
+      <button class="btn2" onclick="tcCheckCloud()">Ověřit cloud</button><button class="btn" onclick="tcSaveTeamToCloud()">☁ Uložit tým do cloudu</button><button class="btn2" onclick="tcLoadTeamFromCloud()">☁ Načíst tým z cloudu</button><button class="btn2" onclick="tcShowOwnerId()">Zobrazit Owner ID</button><button class="btn2" onclick="tcSetOwnerIdPrompt()">Nastavit Owner ID</button>
     </div>
     <div id="cloudStatus" class="small"></div>
   </div>
@@ -1013,6 +1013,29 @@ function renderPremiumHome(){
 function pickCoachPhoto(){let inp=document.getElementById('coachPhotoInput');if(inp)inp.click();}
 function loadCoachPhoto(){let data=localStorage.getItem('tc_coach_photo_v01'),img=document.getElementById('coachPhotoImg'),fb=document.getElementById('coachPhotoFallback');if(!img||!fb)return;if(data){img.src=data;img.classList.remove('hidden');fb.classList.add('hidden')}else{img.classList.add('hidden');fb.classList.remove('hidden')}}
 function setupCoachPhoto(){let inp=document.getElementById('coachPhotoInput');if(!inp||inp.dataset.bound==='1')return;inp.dataset.bound='1';inp.addEventListener('change',function(){let f=inp.files&&inp.files[0];if(!f)return;let r=new FileReader();r.onload=function(){localStorage.setItem('tc_coach_photo_v01',r.result);loadCoachPhoto()};r.readAsDataURL(f)});loadCoachPhoto();}
+
+
+
+function tcShowOwnerId(){
+  let e=document.getElementById("cloudStatus");
+  let id=(typeof tcOwnerId==="function")?tcOwnerId():localStorage.getItem("tc_owner_id_v01");
+  if(e)e.textContent="Owner ID: "+id;
+  if(navigator.clipboard)navigator.clipboard.writeText(id).catch(()=>{});
+}
+
+function tcSetOwnerIdPrompt(){
+  let current=(typeof tcOwnerId==="function")?tcOwnerId():localStorage.getItem("tc_owner_id_v01");
+  let id=prompt("Vlož Owner ID z hlavního zařízení:",current||"");
+  if(!id)return;
+  id=String(id).trim();
+  if(!/^own_[A-Z0-9]{8}$/.test(id)){
+    alert("Owner ID má tvar například own_ABCDEFGH");
+    return;
+  }
+  localStorage.setItem("tc_owner_id_v01",id);
+  let e=document.getElementById("cloudStatus");
+  if(e)e.textContent="Owner ID nastaven: "+id+". Teď zkus Načíst tým z cloudu.";
+}
 
 
 function tcCheckCloud(){
