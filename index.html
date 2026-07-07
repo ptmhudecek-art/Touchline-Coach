@@ -301,9 +301,9 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
     <h3>Cloud</h3>
     <p class="small">TC 2.0.0 Cloud Bootstrap. Ověření spojení s Firebase.</p>
     <div class="row">
-      <button class="btn2" onclick="tcCheckCloud()">Ověřit cloud</button><button class="btn" onclick="tcSaveTeamToCloud()">☁ Uložit tým do cloudu</button><button class="btn2" onclick="tcLoadTeamFromCloud()">☁ Načíst tým z cloudu</button><button class="btn2" onclick="tcShowOwnerId()">Zobrazit Owner ID</button><button class="btn2" onclick="tcSetOwnerIdPrompt()">Nastavit Owner ID</button><button class="btn2" onclick="tcToggleCloudAutoSave()">Auto Save ON/OFF</button>
+      <button class="btn2" onclick="tcCheckCloud()">Ověřit cloud</button><button class="btn" onclick="tcSaveTeamToCloud()">☁ Uložit tým do cloudu</button><button class="btn2" onclick="tcLoadTeamFromCloud()">☁ Načíst tým z cloudu</button><button class="btn2" onclick="tcShowOwnerId()">Zobrazit Owner ID</button><button class="btn2" onclick="tcSetOwnerIdPrompt()">Nastavit Owner ID</button><button class="btn2" onclick="tcToggleCloudAutoSave()">Auto Save ON/OFF</button><button class="btn2" onclick="tcToggleLiveSync()">Live Sync ON/OFF</button>
     </div>
-    <div id="cloudStatus" class="small"></div><div id="cloudAutoSaveState" class="small"></div>
+    <div id="cloudStatus" class="small"></div><div id="cloudAutoSaveState" class="small"></div><div id="cloudLiveSyncState" class="small"></div>
   </div>
 
 </section>
@@ -521,6 +521,7 @@ function addOne(){
   setPlayers(p);
   document.getElementById('onePlayer').value='';
   render();
+  if(typeof tcLiveSyncEnabled==='function'&&tcLiveSyncEnabled())setTimeout(tcStartLiveSync,100);
 }
 function importPlayers(){
   let rows=document.getElementById('bulkPlayers').value.split(/\n+/).map(pretty).filter(Boolean);
@@ -738,7 +739,9 @@ function tcUiSelectTeam(id){
   localStorage.setItem(TC_UI_ACTIVE_TEAM_KEY,id);
   currentPlayerId=null;
   localStorage.removeItem(LL);
+  if(typeof tcLiveSyncEnabled==='function'&&tcLiveSyncEnabled())tcStopLiveSync();
   render();
+  if(typeof tcLiveSyncEnabled==='function'&&tcLiveSyncEnabled())setTimeout(tcStartLiveSync,100);
 }
 function tcUiAddTeam(){
   let inp=document.getElementById("newTeamName");
@@ -1035,6 +1038,7 @@ function tcSetOwnerIdPrompt(){
   localStorage.setItem("tc_owner_id_v01",id);
   let e=document.getElementById("cloudStatus");
   if(e)e.textContent="Owner ID nastaven: "+id+". Teď zkus Načíst tým z cloudu.";
+  if(typeof tcLiveSyncEnabled==='function'&&tcLiveSyncEnabled())setTimeout(tcStartLiveSync,100);
 }
 
 
@@ -1072,6 +1076,7 @@ function tcSetCloudAutoSave(v){localStorage.setItem(TC_CLOUD_AUTOSAVE_KEY,v?"1":
 function tcRenderCloudAutoSaveState(){let e=document.getElementById("cloudAutoSaveState");if(e)e.textContent=tcCloudAutoSaveEnabled()?"Auto Save: zapnuto":"Auto Save: vypnuto"}
 function tcToggleCloudAutoSave(){tcSetCloudAutoSave(!tcCloudAutoSaveEnabled())}
 function tcScheduleCloudSave(reason){
+  if(typeof tcCloudApplyingRemote!=="undefined" && tcCloudApplyingRemote)return;
   if(!tcCloudAutoSaveEnabled())return;
   if(typeof tcBuildTeamSnapshot!=="function")return;
   if(!window.tcCloud||!window.tcCloud.ready||typeof window.tcCloudSaveSnapshot!=="function")return;
@@ -1088,6 +1093,82 @@ function tcScheduleCloudSave(reason){
       if(e)e.textContent="Auto Save chyba: "+(err&&err.message?err.message:err);
     }).finally(()=>{tcCloudAutoSaveBusy=false});
   },900);
+}
+
+
+
+/* --- TC 2.2.0 Cloud Live Sync ---
+Realtime poslech Firestore snapshotu aktivního týmu.
+Směr cloud -> zařízení.
+Auto Save řeší zařízení -> cloud.
+*/
+const TC_LIVE_SYNC_KEY = "tc_live_sync_v01";
+let tcLiveSyncUnsubscribe = null;
+let tcCloudApplyingRemote = false;
+let tcLastAppliedCloudStamp = "";
+
+function tcLiveSyncEnabled(){
+  return localStorage.getItem(TC_LIVE_SYNC_KEY) === "1";
+}
+
+function tcSetLiveSync(v){
+  localStorage.setItem(TC_LIVE_SYNC_KEY, v ? "1" : "0");
+  if(v)tcStartLiveSync();
+  else tcStopLiveSync();
+  tcRenderLiveSyncState();
+}
+
+function tcToggleLiveSync(){
+  tcSetLiveSync(!tcLiveSyncEnabled());
+}
+
+function tcRenderLiveSyncState(){
+  let e=document.getElementById("cloudLiveSyncState");
+  if(e)e.textContent=tcLiveSyncEnabled() ? "Live Sync: zapnuto" : "Live Sync: vypnuto";
+}
+
+function tcStopLiveSync(){
+  if(typeof tcLiveSyncUnsubscribe==="function"){
+    tcLiveSyncUnsubscribe();
+  }
+  tcLiveSyncUnsubscribe=null;
+  tcRenderLiveSyncState();
+}
+
+function tcStartLiveSync(){
+  tcStopLiveSync();
+  if(!tcLiveSyncEnabled())return;
+  if(!window.tcCloud||!window.tcCloud.ready||typeof window.tcCloudWatchSnapshot!=="function"){
+    let e=document.getElementById("cloudStatus");
+    if(e)e.textContent="Live Sync čeká na cloud.";
+    return;
+  }
+  let team = (typeof tcUiActiveTeam === "function") ? tcUiActiveTeam() : {id:"zbiroh_default",name:"TJ Město Zbiroh"};
+  let ownerId = (typeof tcOwnerId === "function") ? tcOwnerId() : "own_local";
+  let teamId = team.id || ((typeof tcUiActiveTeamId === "function") ? tcUiActiveTeamId() : "zbiroh_default");
+
+  try{
+    tcLiveSyncUnsubscribe = window.tcCloudWatchSnapshot(ownerId,teamId,(snapshot)=>{
+      if(!snapshot||!snapshot.data)return;
+      let stamp = snapshot.cloudUpdated && snapshot.cloudUpdated.seconds ? String(snapshot.cloudUpdated.seconds)+"_"+String(snapshot.cloudUpdated.nanoseconds||0) : (snapshot.savedAt||"");
+      if(stamp && stamp===tcLastAppliedCloudStamp)return;
+      tcLastAppliedCloudStamp=stamp;
+      tcCloudApplyingRemote=true;
+      try{
+        tcApplyTeamSnapshot(snapshot);
+        render();
+        let e=document.getElementById("cloudStatus");
+        if(e)e.textContent="Live Sync aktualizováno: "+(snapshot.teamName||team.name||"Tým");
+      }finally{
+        setTimeout(()=>{tcCloudApplyingRemote=false;},50);
+      }
+    });
+    let e=document.getElementById("cloudStatus");
+    if(e)e.textContent="Live Sync poslouchá: "+(team.name||"Tým");
+  }catch(err){
+    let e=document.getElementById("cloudStatus");
+    if(e)e.textContent="Live Sync chyba: "+(err&&err.message?err.message:err);
+  }
 }
 
 
@@ -1216,7 +1297,7 @@ Pouze připojení k Firebase.
 Zatím nemění lokální ukládání dat.
 */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
-import { getFirestore, doc, setDoc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+import { getFirestore, doc, setDoc, getDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
 
 
 const firebaseConfig = {
@@ -1276,6 +1357,23 @@ window.tcCloudLoadSnapshot = async function(ownerId, teamId){
     throw new Error("Snapshot v cloudu nenalezen.");
   }
   return snap.data();
+};
+
+window.tcCloudWatchSnapshot = function(ownerId, teamId, callback){
+  if(!ownerId || !teamId){
+    throw new Error("Chybí ownerId nebo teamId.");
+  }
+  const id = ownerId + "_" + teamId;
+  const ref = doc(tcFirestore, "teamSnapshots", id);
+  return onSnapshot(ref, snap => {
+    if(snap.exists()){
+      callback(snap.data());
+    }
+  }, err => {
+    console.error("TC Live Sync error:", err);
+    const e=document.getElementById("cloudStatus");
+    if(e)e.textContent="Live Sync chyba: "+(err&&err.message?err.message:err);
+  });
 };
 
 console.log("TC Cloud ready:", firebaseConfig.projectId);
