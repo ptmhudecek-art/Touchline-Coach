@@ -301,7 +301,7 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
     <h3>Cloud</h3>
     <p class="small">TC 2.0.0 Cloud Bootstrap. Ověření spojení s Firebase.</p>
     <div class="row">
-      <button class="btn2" onclick="tcCheckCloud()">Ověřit cloud</button>
+      <button class="btn2" onclick="tcCheckCloud()">Ověřit cloud</button><button class="btn" onclick="tcSaveTeamToCloud()">☁ Uložit tým do cloudu</button>
     </div>
     <div id="cloudStatus" class="small"></div>
   </div>
@@ -1034,6 +1034,43 @@ function tcCheckCloud(){
 }
 
 
+
+function tcBuildTeamSnapshot(){
+  let team = (typeof tcUiActiveTeam === "function") ? tcUiActiveTeam() : {id:"zbiroh_default",name:"TJ Město Zbiroh"};
+  return {
+    ownerId: (typeof tcOwnerId === "function") ? tcOwnerId() : "own_local",
+    teamId: team.id || ((typeof tcUiActiveTeamId === "function") ? tcUiActiveTeamId() : "zbiroh_default"),
+    teamName: team.name || "Tým",
+    savedAt: new Date().toISOString(),
+    data: {
+      members: (typeof players === "function") ? players() : [],
+      staff: (typeof staff === "function") ? staff() : [],
+      trainings: (typeof trs === "function") ? trs() : {},
+      attendance: (typeof att === "function") ? att() : {},
+      vaultDrawers: (typeof drawers === "function") ? drawers() : [],
+      vaultExercises: (typeof exercises === "function") ? exercises() : {}
+    }
+  };
+}
+
+function tcSaveTeamToCloud(){
+  let e=document.getElementById("cloudStatus");
+  if(e)e.textContent="Ukládám tým do cloudu...";
+  if(!window.tcCloud||!window.tcCloud.ready||typeof window.tcCloudSaveSnapshot!=="function"){
+    if(e)e.textContent="Cloud není připravený.";
+    return;
+  }
+  let snapshot=tcBuildTeamSnapshot();
+  window.tcCloudSaveSnapshot(snapshot).then(ok=>{
+    if(e)e.textContent=ok
+      ? "Tým uložen do cloudu: "+snapshot.teamName
+      : "Cloud uložení nepotvrzeno.";
+  }).catch(err=>{
+    if(e)e.textContent="Cloud chyba při ukládání: "+(err&&err.message?err.message:err);
+  });
+}
+
+
 function restore(){if(typeof tcOwnerId==='function')tcOwnerId();tcMigrateDefaultKey(LP,[]);tcMigrateDefaultKey(LA,{});tcMigrateDefaultKey(LT,{});tcMigrateDefaultKey(LS,null);tcMigrateDefaultKey(LD,null);tcMigrateDefaultKey(LE,{});let id=localStorage.getItem(LL);if(id&&players().find(p=>p.id===id))currentPlayerId=id;let sid=localStorage.getItem(LRT);if(sid&&staff().find(s=>s.id===sid))currentStaffId=sid}
 function render(){try{renderCal();renderPlayers();renderAttendance();renderSummary();renderHomeTraining();renderPremiumHome();setupCoachPhoto();renderPlayerPanel();renderVault();renderStaff();renderTeams();if(activeDrawerIndex!==null)renderExercises()}catch(e){console.error(e)}}
 restore();render();
@@ -1112,6 +1149,21 @@ window.tcCloudPing = async function(){
     app: "Touchline Coach",
     version: "TC 2.0.0 Cloud Bootstrap",
     updated: serverTimestamp()
+  }, { merge: true });
+  const snap = await getDoc(ref);
+  return snap.exists();
+};
+
+window.tcCloudSaveSnapshot = async function(snapshot){
+  if(!snapshot || !snapshot.ownerId || !snapshot.teamId){
+    throw new Error("Snapshot nemá ownerId nebo teamId.");
+  }
+  const id = snapshot.ownerId + "_" + snapshot.teamId;
+  const ref = doc(tcFirestore, "teamSnapshots", id);
+  await setDoc(ref, {
+    ...snapshot,
+    cloudVersion: "TC 2.0.1 Cloud Save Snapshot",
+    cloudUpdated: serverTimestamp()
   }, { merge: true });
   const snap = await getDoc(ref);
   return snap.exists();
