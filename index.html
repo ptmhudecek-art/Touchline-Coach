@@ -301,7 +301,7 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
     <h3>Cloud</h3>
     <p class="small">TC 2.0.0 Cloud Bootstrap. Ověření spojení s Firebase.</p>
     <div class="row">
-      <button class="btn2" onclick="tcCheckCloud()">Ověřit cloud</button><button class="btn" onclick="tcSaveTeamToCloud()">☁ Uložit tým do cloudu</button>
+      <button class="btn2" onclick="tcCheckCloud()">Ověřit cloud</button><button class="btn" onclick="tcSaveTeamToCloud()">☁ Uložit tým do cloudu</button><button class="btn2" onclick="tcLoadTeamFromCloud()">☁ Načíst tým z cloudu</button>
     </div>
     <div id="cloudStatus" class="small"></div>
   </div>
@@ -1071,6 +1071,46 @@ function tcSaveTeamToCloud(){
 }
 
 
+
+function tcApplyTeamSnapshot(snapshot){
+  if(!snapshot || !snapshot.data){
+    throw new Error("Neplatný snapshot.");
+  }
+  let d=snapshot.data;
+  if(typeof setPlayers==="function")setPlayers(d.members||[]);
+  if(typeof setStaff==="function")setStaff(d.staff||[]);
+  if(typeof setTrs==="function")setTrs(d.trainings||{});
+  if(typeof setAttObj==="function")setAttObj(d.attendance||{});
+  if(typeof setDrawers==="function")setDrawers(d.vaultDrawers||[]);
+  if(typeof setExercises==="function")setExercises(d.vaultExercises||{});
+  currentPlayerId=null;
+  currentStaffId=null;
+  selectedDate=null;
+  if(typeof activeDrawerIndex!=="undefined")activeDrawerIndex=null;
+  localStorage.removeItem(LL);
+  localStorage.removeItem(LRT);
+}
+
+function tcLoadTeamFromCloud(){
+  let e=document.getElementById("cloudStatus");
+  if(e)e.textContent="Načítám tým z cloudu...";
+  if(!window.tcCloud||!window.tcCloud.ready||typeof window.tcCloudLoadSnapshot!=="function"){
+    if(e)e.textContent="Cloud není připravený.";
+    return;
+  }
+  let team = (typeof tcUiActiveTeam === "function") ? tcUiActiveTeam() : {id:"zbiroh_default",name:"TJ Město Zbiroh"};
+  let ownerId = (typeof tcOwnerId === "function") ? tcOwnerId() : "own_local";
+  let teamId = team.id || ((typeof tcUiActiveTeamId === "function") ? tcUiActiveTeamId() : "zbiroh_default");
+  window.tcCloudLoadSnapshot(ownerId,teamId).then(snapshot=>{
+    tcApplyTeamSnapshot(snapshot);
+    render();
+    if(e)e.textContent="Tým načten z cloudu: "+(snapshot.teamName||team.name||"Tým");
+  }).catch(err=>{
+    if(e)e.textContent="Cloud chyba při načítání: "+(err&&err.message?err.message:err);
+  });
+}
+
+
 function restore(){if(typeof tcOwnerId==='function')tcOwnerId();tcMigrateDefaultKey(LP,[]);tcMigrateDefaultKey(LA,{});tcMigrateDefaultKey(LT,{});tcMigrateDefaultKey(LS,null);tcMigrateDefaultKey(LD,null);tcMigrateDefaultKey(LE,{});let id=localStorage.getItem(LL);if(id&&players().find(p=>p.id===id))currentPlayerId=id;let sid=localStorage.getItem(LRT);if(sid&&staff().find(s=>s.id===sid))currentStaffId=sid}
 function render(){try{renderCal();renderPlayers();renderAttendance();renderSummary();renderHomeTraining();renderPremiumHome();setupCoachPhoto();renderPlayerPanel();renderVault();renderStaff();renderTeams();if(activeDrawerIndex!==null)renderExercises()}catch(e){console.error(e)}}
 restore();render();
@@ -1167,6 +1207,19 @@ window.tcCloudSaveSnapshot = async function(snapshot){
   }, { merge: true });
   const snap = await getDoc(ref);
   return snap.exists();
+};
+
+window.tcCloudLoadSnapshot = async function(ownerId, teamId){
+  if(!ownerId || !teamId){
+    throw new Error("Chybí ownerId nebo teamId.");
+  }
+  const id = ownerId + "_" + teamId;
+  const ref = doc(tcFirestore, "teamSnapshots", id);
+  const snap = await getDoc(ref);
+  if(!snap.exists()){
+    throw new Error("Snapshot v cloudu nenalezen.");
+  }
+  return snap.data();
 };
 
 console.log("TC Cloud ready:", firebaseConfig.projectId);
