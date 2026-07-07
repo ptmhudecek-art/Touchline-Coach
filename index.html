@@ -441,9 +441,9 @@ function tcTeamLoad(base,def){tcMigrateDefaultKey(base,def);return load(tcTeamKe
 function tcTeamSave(base,value){tcMigrateDefaultKey(base,Array.isArray(value)?[]:{});save(tcTeamKey(base),value);if(tcTeamId()==="zbiroh_default")save(base,value)}
 
 
-function players(){return tcTeamLoad(LP,[])} function setPlayers(v){tcTeamSave(LP,v);tcScheduleCloudSave('players')}
-function att(){return tcTeamLoad(LA,{})} function setAttObj(v){tcTeamSave(LA,v);tcScheduleCloudSave('attendance')}
-function trs(){return tcTeamLoad(LT,{})} function setTrs(v){tcTeamSave(LT,v);tcScheduleCloudSave('trainings')}
+function players(){return tcTeamLoad(LP,[])} function setPlayers(v){tcTeamSave(LP,v);tcScheduleCloudSave('players');setTimeout(()=>tcCloudPushNow('players'),700)}
+function att(){return tcTeamLoad(LA,{})} function setAttObj(v){tcTeamSave(LA,v);tcScheduleCloudSave('attendance');setTimeout(()=>tcCloudPushNow('attendance'),700)}
+function trs(){return tcTeamLoad(LT,{})} function setTrs(v){tcTeamSave(LT,v);tcScheduleCloudSave('trainings');setTimeout(()=>tcCloudPushNow('trainings'),700)}
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function pretty(s){return String(s).trim().replace(/\s+/g,' ')} function norm(s){return pretty(s).toLowerCase()}
 function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
@@ -778,9 +778,9 @@ function renderTeams(){
 let activeDrawerIndex=null;
 
 function drawers(){let d=tcTeamLoad(LD,null);if(!d){d=tcTeamId()==="zbiroh_default"?["Aktivace","Bagovky","Dovednosti","Zakončení","Hry"]:[];tcTeamSave(LD,d)}return d}
-function setDrawers(d){tcTeamSave(LD,d);tcScheduleCloudSave('vaultDrawers')}
+function setDrawers(d){tcTeamSave(LD,d);tcScheduleCloudSave('vaultDrawers');setTimeout(()=>tcCloudPushNow('vaultDrawers'),700)}
 function exercises(){return tcTeamLoad(LE,{})}
-function setExercises(e){tcTeamSave(LE,e);tcScheduleCloudSave('vaultExercises')}
+function setExercises(e){tcTeamSave(LE,e);tcScheduleCloudSave('vaultExercises');setTimeout(()=>tcCloudPushNow('vaultExercises'),700)}
 
 function addDrawer(){
   let n=pretty(document.getElementById("drawerName").value);
@@ -870,22 +870,32 @@ function renderExercises(){
 }
 
 function staff(){let s=tcTeamLoad(LS,null);if(!s){s=tcTeamId()==="zbiroh_default"?[{id:"pavel",name:"Pavel",role:"admin",code:tcAccessCode("coach")},{id:"kuba",name:"Kuba",role:"coach",code:tcAccessCode("coach")},{id:"rt",name:"Realizák",role:"view",code:tcAccessCode("coach")}]:[];tcTeamSave(LS,s)}let changed=false;s.forEach(x=>{if(!x.code){x.code=tcAccessCode("coach");changed=true}});if(changed)tcTeamSave(LS,s);return s}
-function setStaff(s){tcTeamSave(LS,s);tcScheduleCloudSave('staff')}
+function setStaff(s){tcTeamSave(LS,s);tcScheduleCloudSave('staff');setTimeout(()=>tcCloudPushNow('staff'),700)}
 function roleText(r){return r==="admin"?"Hlavní trenér":r==="coach"?"Asistent trenéra":"RT - náhled"}
 function addStaff(){
-  let n=pretty(document.getElementById("staffName").value);
-  if(!n)return;
-  let r=document.getElementById("staffRole").value;
-  let s=staff();
-  s.push(tcWithIdentity({
-    id:Date.now()+"_"+Math.random().toString(16).slice(2),
-    name:n,
-    role:r,
-    code:tcAccessCode(r==="admin"?"admin":"coach")
-  }));
-  setStaff(s);
-  document.getElementById("staffName").value="";
-  renderStaff();
+  try{
+    let n=pretty(document.getElementById("staffName").value);
+    if(!n){
+      let m=document.getElementById("staffLoginMsg");
+      if(m)m.textContent="Zadej jméno člena RT.";
+      return;
+    }
+    let roleEl=document.getElementById("staffRole");
+    let r=roleEl?roleEl.value:"coach";
+    let s=staff();
+    s.push(tcWithIdentity({
+      id:Date.now()+"_"+Math.random().toString(16).slice(2),
+      name:n,
+      role:r,
+      code:tcAccessCode(r==="admin"?"admin":"coach")
+    }));
+    setStaff(s);
+    document.getElementById("staffName").value="";
+    render();
+    setTimeout(()=>tcCloudPushNow('staff'),300);
+  }catch(err){
+    alert("Chyba při přidání RT: "+(err&&err.message?err.message:err));
+  }
 }
 function deleteStaff(i){
   let s=staff();
@@ -1087,12 +1097,12 @@ function tcScheduleCloudSave(reason){
     let snapshot=tcBuildTeamSnapshot();
     window.tcCloudSaveSnapshot(snapshot).then(()=>{
       let e=document.getElementById("cloudStatus");
-      if(e)e.textContent="Auto Save OK: "+(snapshot.teamName||"Tým");
+      if(e)e.textContent="Auto Save OK: "+(snapshot.teamName||"Tým")+" ("+(reason||"změna")+")";
     }).catch(err=>{
       let e=document.getElementById("cloudStatus");
       if(e)e.textContent="Auto Save chyba: "+(err&&err.message?err.message:err);
     }).finally(()=>{tcCloudAutoSaveBusy=false});
-  },900);
+  },500);
 }
 
 
@@ -1124,7 +1134,7 @@ function tcToggleLiveSync(){
 
 function tcRenderLiveSyncState(){
   let e=document.getElementById("cloudLiveSyncState");
-  if(e)e.textContent=tcLiveSyncEnabled() ? "Live Sync: zapnuto" : "Live Sync: vypnuto";
+  if(e)e.textContent=tcLiveSyncEnabled() ? "Live Sync: zapnuto | obousměrně přes Auto Save" : "Live Sync: vypnuto";
 }
 
 function tcStopLiveSync(){
@@ -1169,6 +1179,25 @@ function tcStartLiveSync(){
     let e=document.getElementById("cloudStatus");
     if(e)e.textContent="Live Sync chyba: "+(err&&err.message?err.message:err);
   }
+}
+
+
+
+/* --- TC 2.2.1 Bidirectional Sync + RT Fix ---
+Zpřesňuje ukládání změn ze sekundárního zařízení do cloudu.
+*/
+function tcCloudPushNow(reason){
+  if(typeof tcBuildTeamSnapshot!=="function")return;
+  if(!window.tcCloud||!window.tcCloud.ready||typeof window.tcCloudSaveSnapshot!=="function")return;
+  if(typeof tcCloudApplyingRemote!=="undefined" && tcCloudApplyingRemote)return;
+  let snapshot=tcBuildTeamSnapshot();
+  window.tcCloudSaveSnapshot(snapshot).then(()=>{
+    let e=document.getElementById("cloudStatus");
+    if(e)e.textContent="Cloud uloženo: "+(snapshot.teamName||"Tým")+" ("+(reason||"změna")+")";
+  }).catch(err=>{
+    let e=document.getElementById("cloudStatus");
+    if(e)e.textContent="Cloud chyba ukládání: "+(err&&err.message?err.message:err);
+  });
 }
 
 
