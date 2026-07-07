@@ -401,9 +401,39 @@ function tab(id){document.querySelectorAll('.page').forEach(p=>p.classList.remov
 function toggleDetail(){document.getElementById('homeDetail').classList.toggle('hidden');}
 function load(k,def){return JSON.parse(localStorage.getItem(k)||JSON.stringify(def))}
 function save(k,v){localStorage.setItem(k,JSON.stringify(v))}
-function players(){return load(LP,[])} function setPlayers(v){save(LP,v)}
-function att(){return load(LA,{})} function setAttObj(v){save(LA,v)}
-function trs(){return load(LT,{})} function setTrs(v){save(LT,v)}
+
+/* --- TC 1.6.3 Players by Team ---
+Odděluje pouze seznam členů podle aktivního týmu.
+Kalendář, docházka, RT a trezor zůstávají zatím společné.
+*/
+function tcPlayersKey(){
+  let id=(typeof tcUiActiveTeamId==="function")?tcUiActiveTeamId():"zbiroh_default";
+  return LP+"__"+id;
+}
+function tcMigrateDefaultPlayers(){
+  let key=LP+"__zbiroh_default";
+  if(localStorage.getItem(key)===null){
+    save(key,load(LP,[]));
+  }
+}
+
+
+
+/* --- TC 1.6.4 Team Empty Mode ---
+Odděluje vnitřek aplikace podle aktivního týmu:
+členové, tréninky, docházka, RT, trezor.
+Původní tým zdědí stará data, nový tým začíná prázdný.
+*/
+function tcTeamId(){return (typeof tcUiActiveTeamId==="function")?tcUiActiveTeamId():"zbiroh_default"}
+function tcTeamKey(base){return base+"__"+tcTeamId()}
+function tcMigrateDefaultKey(base,def){let key=base+"__zbiroh_default";if(localStorage.getItem(key)===null){save(key,load(base,def))}}
+function tcTeamLoad(base,def){tcMigrateDefaultKey(base,def);return load(tcTeamKey(base),def)}
+function tcTeamSave(base,value){tcMigrateDefaultKey(base,Array.isArray(value)?[]:{});save(tcTeamKey(base),value);if(tcTeamId()==="zbiroh_default")save(base,value)}
+
+
+function players(){return tcTeamLoad(LP,[])} function setPlayers(v){tcTeamSave(LP,v)}
+function att(){return tcTeamLoad(LA,{})} function setAttObj(v){tcTeamSave(LA,v)}
+function trs(){return tcTeamLoad(LT,{})} function setTrs(v){tcTeamSave(LT,v)}
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function pretty(s){return String(s).trim().replace(/\s+/g,' ')} function norm(s){return pretty(s).toLowerCase()}
 function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
@@ -619,7 +649,9 @@ function tcUiSelectTeam(id){
   let teams=tcUiTeams();
   if(!teams.find(t=>t.id===id))return;
   localStorage.setItem(TC_UI_ACTIVE_TEAM_KEY,id);
-  renderTeams();
+  currentPlayerId=null;
+  localStorage.removeItem(LL);
+  render();
 }
 function tcUiAddTeam(){
   let inp=document.getElementById("newTeamName");
@@ -635,7 +667,9 @@ function tcUiAddTeam(){
   save(TC_UI_TEAMS_KEY,teams);
   localStorage.setItem(TC_UI_ACTIVE_TEAM_KEY,id);
   if(inp)inp.value="";
-  renderTeams();
+  currentPlayerId=null;
+  localStorage.removeItem(LL);
+  render();
 }
 function tcUiIsOwner(){return true}
 
@@ -646,37 +680,17 @@ function selectTeam(t){tcUiSelectTeam(t)}
 function showAddTeam(){let b=document.getElementById("addTeamBox");if(b)b.classList.toggle("hidden")}
 function addTeam(){tcUiAddTeam()}
 function renderTeams(){
-  let box=document.getElementById("teamSwitchBox");
-  if(!box)return;
-  let teams=tcUiTeams();
-  let active=tcUiActiveTeamId();
-  box.innerHTML=`<div class="teamSwitch">
-    <div class="label">Aktivní tým</div>
-    <div class="rowTeam">
-      <select id="teamSelect" onchange="tcUiSelectTeam(this.value)">
-        ${teams.map(t=>`<option value="${esc(t.id)}" ${t.id===active?'selected':''}>${esc(t.name)}</option>`).join("")}
-      </select>
-    </div>
-    <div class="rowTeam">
-      <input id="newTeamName" placeholder="Nový tým, např. U19">
-      <button class="btn" onclick="tcUiAddTeam()">+ tým</button>
-    </div>
-  </div>`;
+  let box=document.getElementById("teamSwitchBox"); if(!box)return;
+  let teams=tcUiTeams(),active=tcUiActiveTeamId();
+  box.innerHTML=`<div class="teamSwitch"><div class="label">Aktivní tým</div><div class="rowTeam"><select id="teamSelect" onchange="tcUiSelectTeam(this.value)">${teams.map(t=>`<option value="${esc(t.id)}" ${t.id===active?'selected':''}>${esc(t.name)}</option>`).join("")}</select></div><div class="rowTeam"><input id="newTeamName" placeholder="Nový tým, např. U19"><button class="btn" onclick="tcUiAddTeam()">+ tým</button></div></div>`;
 }
 
 let activeDrawerIndex=null;
 
-function drawers(){
-  let d=load(LD,null);
-  if(!d){
-    d=["Aktivace","Bagovky","Dovednosti","Zakončení","Hry"];
-    save(LD,d);
-  }
-  return d;
-}
-function setDrawers(d){save(LD,d)}
-function exercises(){return load(LE,{})}
-function setExercises(e){save(LE,e)}
+function drawers(){let d=tcTeamLoad(LD,null);if(!d){d=tcTeamId()==="zbiroh_default"?["Aktivace","Bagovky","Dovednosti","Zakončení","Hry"]:[];tcTeamSave(LD,d)}return d}
+function setDrawers(d){tcTeamSave(LD,d)}
+function exercises(){return tcTeamLoad(LE,{})}
+function setExercises(e){tcTeamSave(LE,e)}
 
 function addDrawer(){
   let n=pretty(document.getElementById("drawerName").value);
@@ -765,24 +779,8 @@ function renderExercises(){
   }).join("");
 }
 
-function staff(){
-  let s=load(LS,null);
-  if(!s){
-    s=[
-      {id:"pavel",name:"Pavel",role:"admin",code:"RT-ZBIROH-"+code4()},
-      {id:"kuba",name:"Kuba",role:"coach",code:"RT-ZBIROH-"+code4()},
-      {id:"rt",name:"Realizák",role:"view",code:"RT-ZBIROH-"+code4()}
-    ];
-    save(LS,s);
-  }
-  let changed=false;
-  s.forEach(x=>{
-    if(!x.code){x.code="RT-ZBIROH-"+code4();changed=true;}
-  });
-  if(changed)save(LS,s);
-  return s;
-}
-function setStaff(s){save(LS,s)}
+function staff(){let s=tcTeamLoad(LS,null);if(!s){s=tcTeamId()==="zbiroh_default"?[{id:"pavel",name:"Pavel",role:"admin",code:"RT-ZBIROH-"+code4()},{id:"kuba",name:"Kuba",role:"coach",code:"RT-ZBIROH-"+code4()},{id:"rt",name:"Realizák",role:"view",code:"RT-ZBIROH-"+code4()}]:[];tcTeamSave(LS,s)}let changed=false;s.forEach(x=>{if(!x.code){x.code="RT-ZBIROH-"+code4();changed=true}});if(changed)tcTeamSave(LS,s);return s}
+function setStaff(s){tcTeamSave(LS,s)}
 function roleText(r){return r==="admin"?"Hlavní trenér":r==="coach"?"Asistent trenéra":"RT - náhled"}
 function addStaff(){
   let n=pretty(document.getElementById("staffName").value);
@@ -924,12 +922,7 @@ function pickCoachPhoto(){let inp=document.getElementById('coachPhotoInput');if(
 function loadCoachPhoto(){let data=localStorage.getItem('tc_coach_photo_v01'),img=document.getElementById('coachPhotoImg'),fb=document.getElementById('coachPhotoFallback');if(!img||!fb)return;if(data){img.src=data;img.classList.remove('hidden');fb.classList.add('hidden')}else{img.classList.add('hidden');fb.classList.remove('hidden')}}
 function setupCoachPhoto(){let inp=document.getElementById('coachPhotoInput');if(!inp||inp.dataset.bound==='1')return;inp.dataset.bound='1';inp.addEventListener('change',function(){let f=inp.files&&inp.files[0];if(!f)return;let r=new FileReader();r.onload=function(){localStorage.setItem('tc_coach_photo_v01',r.result);loadCoachPhoto()};r.readAsDataURL(f)});loadCoachPhoto();}
 
-function restore(){
-  let id=localStorage.getItem(LL);
-  if(id&&players().find(p=>p.id===id))currentPlayerId=id;
-  let sid=localStorage.getItem(LRT);
-  if(sid&&staff().find(s=>s.id===sid))currentStaffId=sid;
-}
+function restore(){tcMigrateDefaultKey(LP,[]);tcMigrateDefaultKey(LA,{});tcMigrateDefaultKey(LT,{});tcMigrateDefaultKey(LS,null);tcMigrateDefaultKey(LD,null);tcMigrateDefaultKey(LE,{});let id=localStorage.getItem(LL);if(id&&players().find(p=>p.id===id))currentPlayerId=id;let sid=localStorage.getItem(LRT);if(sid&&staff().find(s=>s.id===sid))currentStaffId=sid}
 function render(){try{renderCal();renderPlayers();renderAttendance();renderSummary();renderHomeTraining();renderPremiumHome();setupCoachPhoto();renderPlayerPanel();renderVault();renderStaff();renderTeams();if(activeDrawerIndex!==null)renderExercises()}catch(e){console.error(e)}}
 restore();render();
 </script>

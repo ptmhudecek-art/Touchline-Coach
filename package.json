@@ -1,6 +1,6 @@
 {
-  "name": "touchline-coach-tc-1-6-2b-add-teams-safe",
-  "version": "1.6.2",
+  "name": "touchline-coach-tc-1-6-3-players-by-team",
+  "version": "1.6.3",
   "private": true,
   "type": "module",
   "scripts": {
