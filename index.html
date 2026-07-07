@@ -297,6 +297,12 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
   <div id="pinSetup" class="card hidden"><h3>Nastavit PIN</h3><input id="pin1" maxlength="4" placeholder="PIN"><input id="pin2" maxlength="4" placeholder="PIN znovu"><button class="btn" onclick="savePin()">Uložit PIN</button></div>
   <div id="playerPanel" class="card hidden"></div>
 
+
+  <div class="card" id="identityCard">
+    <h3>Identity</h3>
+    <div id="identityPanel" class="small">Načítám identitu...</div>
+  </div>
+
   <div class="card">
     <h3>Cloud</h3>
     <p class="small">TC 2.0.0 Cloud Bootstrap. Ověření spojení s Firebase.</p>
@@ -643,6 +649,36 @@ function tcIdentityRoleForUser(){
   return "owner";
 }
 function tcRefreshIdentity(){let i=tcSaveTeamIdentity();if(typeof tcCloudPushNow==="function")setTimeout(()=>tcCloudPushNow("identity"),300);return i}
+
+/* --- TC 3.0.1 Identity Status UI --- */
+function tcIdentityNameById(list,id){
+  let x=(list||[]).find(i=>i.id===id);
+  return x ? x.name : "";
+}
+function tcRenderIdentityPanel(){
+  let box=document.getElementById("identityPanel");
+  if(!box)return;
+  let team=(typeof tcUiActiveTeam==="function")?tcUiActiveTeam():{id:"zbiroh_default",name:"TJ Město Zbiroh"};
+  let identity=(typeof tcLoadTeamIdentity==="function")?tcLoadTeamIdentity():null;
+  let s=(typeof staff==="function")?staff():[];
+  let p=(typeof players==="function")?players():[];
+  let role=(typeof tcPermissionsLabel==="function")?tcPermissionsLabel():((typeof tcCurrentRole==="function")?tcCurrentRole():"Owner");
+  let owner=(typeof tcOwnerId==="function")?tcOwnerId():"own_local";
+  let mainId=identity&&identity.mainCoachId?identity.mainCoachId:null;
+  let mainName=mainId?tcIdentityNameById(s,mainId):"není";
+  let assistants=identity&&identity.assistantIds?identity.assistantIds.length:s.filter(x=>x.role!=="admin").length;
+
+  box.innerHTML=
+    "<div><b>Role:</b> "+esc(role)+"</div>"+
+    "<div><b>Owner ID:</b> <code>"+esc(owner)+"</code></div>"+
+    "<div><b>Aktivní tým:</b> "+esc(team.name||"Tým")+"</div>"+
+    "<div><b>Team ID:</b> <code>"+esc(team.id||"")+"</code></div>"+
+    "<div><b>Hlavní trenér:</b> "+esc(mainName)+"</div>"+
+    "<div><b>Asistenti / RT náhled:</b> "+assistants+"</div>"+
+    "<div><b>Hráči:</b> "+p.length+"</div>";
+}
+
+
 function tcRenderIdentityStatus(){let e=document.getElementById("identityStatus");if(!e||typeof tcLoadTeamIdentity!=="function")return;let i=tcLoadTeamIdentity();e.textContent="Identity: "+(i.teamName||"Tým")+" | hlavní trenér: "+(i.mainCoachId||"není")}
 
 
