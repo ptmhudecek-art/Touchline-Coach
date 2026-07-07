@@ -301,9 +301,9 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
     <h3>Cloud</h3>
     <p class="small">TC 2.0.0 Cloud Bootstrap. Ověření spojení s Firebase.</p>
     <div class="row">
-      <button class="btn2" onclick="tcCheckCloud()">Ověřit cloud</button><button class="btn" onclick="tcSaveTeamToCloud()">☁ Uložit tým do cloudu</button><button class="btn2" onclick="tcLoadTeamFromCloud()">☁ Načíst tým z cloudu</button><button class="btn2" onclick="tcShowOwnerId()">Zobrazit Owner ID</button><button class="btn2" onclick="tcSetOwnerIdPrompt()">Nastavit Owner ID</button>
+      <button class="btn2" onclick="tcCheckCloud()">Ověřit cloud</button><button class="btn" onclick="tcSaveTeamToCloud()">☁ Uložit tým do cloudu</button><button class="btn2" onclick="tcLoadTeamFromCloud()">☁ Načíst tým z cloudu</button><button class="btn2" onclick="tcShowOwnerId()">Zobrazit Owner ID</button><button class="btn2" onclick="tcSetOwnerIdPrompt()">Nastavit Owner ID</button><button class="btn2" onclick="tcToggleCloudAutoSave()">Auto Save ON/OFF</button>
     </div>
-    <div id="cloudStatus" class="small"></div>
+    <div id="cloudStatus" class="small"></div><div id="cloudAutoSaveState" class="small"></div>
   </div>
 
 </section>
@@ -441,9 +441,9 @@ function tcTeamLoad(base,def){tcMigrateDefaultKey(base,def);return load(tcTeamKe
 function tcTeamSave(base,value){tcMigrateDefaultKey(base,Array.isArray(value)?[]:{});save(tcTeamKey(base),value);if(tcTeamId()==="zbiroh_default")save(base,value)}
 
 
-function players(){return tcTeamLoad(LP,[])} function setPlayers(v){tcTeamSave(LP,v)}
-function att(){return tcTeamLoad(LA,{})} function setAttObj(v){tcTeamSave(LA,v)}
-function trs(){return tcTeamLoad(LT,{})} function setTrs(v){tcTeamSave(LT,v)}
+function players(){return tcTeamLoad(LP,[])} function setPlayers(v){tcTeamSave(LP,v);tcScheduleCloudSave('players')}
+function att(){return tcTeamLoad(LA,{})} function setAttObj(v){tcTeamSave(LA,v);tcScheduleCloudSave('attendance')}
+function trs(){return tcTeamLoad(LT,{})} function setTrs(v){tcTeamSave(LT,v);tcScheduleCloudSave('trainings')}
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function pretty(s){return String(s).trim().replace(/\s+/g,' ')} function norm(s){return pretty(s).toLowerCase()}
 function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
@@ -775,9 +775,9 @@ function renderTeams(){
 let activeDrawerIndex=null;
 
 function drawers(){let d=tcTeamLoad(LD,null);if(!d){d=tcTeamId()==="zbiroh_default"?["Aktivace","Bagovky","Dovednosti","Zakončení","Hry"]:[];tcTeamSave(LD,d)}return d}
-function setDrawers(d){tcTeamSave(LD,d)}
+function setDrawers(d){tcTeamSave(LD,d);tcScheduleCloudSave('vaultDrawers')}
 function exercises(){return tcTeamLoad(LE,{})}
-function setExercises(e){tcTeamSave(LE,e)}
+function setExercises(e){tcTeamSave(LE,e);tcScheduleCloudSave('vaultExercises')}
 
 function addDrawer(){
   let n=pretty(document.getElementById("drawerName").value);
@@ -867,7 +867,7 @@ function renderExercises(){
 }
 
 function staff(){let s=tcTeamLoad(LS,null);if(!s){s=tcTeamId()==="zbiroh_default"?[{id:"pavel",name:"Pavel",role:"admin",code:tcAccessCode("coach")},{id:"kuba",name:"Kuba",role:"coach",code:tcAccessCode("coach")},{id:"rt",name:"Realizák",role:"view",code:tcAccessCode("coach")}]:[];tcTeamSave(LS,s)}let changed=false;s.forEach(x=>{if(!x.code){x.code=tcAccessCode("coach");changed=true}});if(changed)tcTeamSave(LS,s);return s}
-function setStaff(s){tcTeamSave(LS,s)}
+function setStaff(s){tcTeamSave(LS,s);tcScheduleCloudSave('staff')}
 function roleText(r){return r==="admin"?"Hlavní trenér":r==="coach"?"Asistent trenéra":"RT - náhled"}
 function addStaff(){
   let n=pretty(document.getElementById("staffName").value);
@@ -1058,6 +1058,39 @@ function tcCheckCloud(){
 
 
 
+
+/* --- TC 2.1.0 Cloud Auto Save ---
+Po lokální změně naplánuje uložení aktivního týmu do cloudu.
+Zatím pouze směr zařízení -> cloud.
+*/
+const TC_CLOUD_AUTOSAVE_KEY = "tc_cloud_autosave_v01";
+let tcCloudAutoSaveTimer = null;
+let tcCloudAutoSaveBusy = false;
+
+function tcCloudAutoSaveEnabled(){return localStorage.getItem(TC_CLOUD_AUTOSAVE_KEY)!=="0"}
+function tcSetCloudAutoSave(v){localStorage.setItem(TC_CLOUD_AUTOSAVE_KEY,v?"1":"0");tcRenderCloudAutoSaveState()}
+function tcRenderCloudAutoSaveState(){let e=document.getElementById("cloudAutoSaveState");if(e)e.textContent=tcCloudAutoSaveEnabled()?"Auto Save: zapnuto":"Auto Save: vypnuto"}
+function tcToggleCloudAutoSave(){tcSetCloudAutoSave(!tcCloudAutoSaveEnabled())}
+function tcScheduleCloudSave(reason){
+  if(!tcCloudAutoSaveEnabled())return;
+  if(typeof tcBuildTeamSnapshot!=="function")return;
+  if(!window.tcCloud||!window.tcCloud.ready||typeof window.tcCloudSaveSnapshot!=="function")return;
+  clearTimeout(tcCloudAutoSaveTimer);
+  tcCloudAutoSaveTimer=setTimeout(()=>{
+    if(tcCloudAutoSaveBusy)return;
+    tcCloudAutoSaveBusy=true;
+    let snapshot=tcBuildTeamSnapshot();
+    window.tcCloudSaveSnapshot(snapshot).then(()=>{
+      let e=document.getElementById("cloudStatus");
+      if(e)e.textContent="Auto Save OK: "+(snapshot.teamName||"Tým");
+    }).catch(err=>{
+      let e=document.getElementById("cloudStatus");
+      if(e)e.textContent="Auto Save chyba: "+(err&&err.message?err.message:err);
+    }).finally(()=>{tcCloudAutoSaveBusy=false});
+  },900);
+}
+
+
 function tcBuildTeamSnapshot(){
   let team = (typeof tcUiActiveTeam === "function") ? tcUiActiveTeam() : {id:"zbiroh_default",name:"TJ Město Zbiroh"};
   return {
@@ -1134,7 +1167,7 @@ function tcLoadTeamFromCloud(){
 }
 
 
-function restore(){if(typeof tcOwnerId==='function')tcOwnerId();tcMigrateDefaultKey(LP,[]);tcMigrateDefaultKey(LA,{});tcMigrateDefaultKey(LT,{});tcMigrateDefaultKey(LS,null);tcMigrateDefaultKey(LD,null);tcMigrateDefaultKey(LE,{});let id=localStorage.getItem(LL);if(id&&players().find(p=>p.id===id))currentPlayerId=id;let sid=localStorage.getItem(LRT);if(sid&&staff().find(s=>s.id===sid))currentStaffId=sid}
+function restore(){setTimeout(tcRenderCloudAutoSaveState,0);if(typeof tcOwnerId==='function')tcOwnerId();tcMigrateDefaultKey(LP,[]);tcMigrateDefaultKey(LA,{});tcMigrateDefaultKey(LT,{});tcMigrateDefaultKey(LS,null);tcMigrateDefaultKey(LD,null);tcMigrateDefaultKey(LE,{});let id=localStorage.getItem(LL);if(id&&players().find(p=>p.id===id))currentPlayerId=id;let sid=localStorage.getItem(LRT);if(sid&&staff().find(s=>s.id===sid))currentStaffId=sid}
 function render(){try{renderCal();renderPlayers();renderAttendance();renderSummary();renderHomeTraining();renderPremiumHome();setupCoachPhoto();renderPlayerPanel();renderVault();renderStaff();renderTeams();if(activeDrawerIndex!==null)renderExercises()}catch(e){console.error(e)}}
 restore();render();
 </script>
