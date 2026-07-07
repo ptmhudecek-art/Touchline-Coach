@@ -283,7 +283,7 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
       <button class="btn" onclick="accessLogin()">Přihlásit kódem</button>
       <button class="btn2" onclick="accessLogout()">Odhlásit</button>
     </div>
-    <div id="accessMsg" class="small"></div><div id="permissionStatus" class="small"></div>
+    <div id="accessMsg" class="small"></div><div id="permissionStatus" class="small"></div><div id="identityStatus" class="small"></div>
   </div>
 
   <div class="card">
@@ -441,7 +441,7 @@ function tcTeamLoad(base,def){tcMigrateDefaultKey(base,def);return load(tcTeamKe
 function tcTeamSave(base,value){tcMigrateDefaultKey(base,Array.isArray(value)?[]:{});save(tcTeamKey(base),value);if(tcTeamId()==="zbiroh_default")save(base,value)}
 
 
-function players(){return tcTeamLoad(LP,[])} function setPlayers(v){tcTeamSave(LP,v);tcScheduleCloudSave('players');setTimeout(()=>tcCloudPushNow('players'),700)}
+function players(){return tcTeamLoad(LP,[])} function setPlayers(v){tcTeamSave(LP,v);if(typeof tcRefreshIdentity==="function")setTimeout(tcRefreshIdentity,50);if(typeof tcScheduleCloudSave==="function")tcScheduleCloudSave('players');if(typeof tcCloudPushNow==="function")setTimeout(()=>tcCloudPushNow('players'),700)}
 function att(){return tcTeamLoad(LA,{})} function setAttObj(v){tcTeamSave(LA,v);tcScheduleCloudSave('attendance');setTimeout(()=>tcCloudPushNow('attendance'),700)}
 function trs(){return tcTeamLoad(LT,{})} function setTrs(v){tcTeamSave(LT,v);tcScheduleCloudSave('trainings');setTimeout(()=>tcCloudPushNow('trainings'),700)}
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
@@ -609,8 +609,50 @@ function closeVideo(){let box=document.getElementById('playerBox'),v=document.ge
 
 
 /* --- TC 2.3.1 Final Permissions --- */
+
+/* --- TC 3.0.0 Identity Engine - Step 1 ---
+Vnitřní model identit. Bez změny vzhledu aplikace.
+*/
+function tcTeamIdentityKey(teamId){return "tc_identity_team_"+teamId+"_v01"}
+function tcBuildTeamIdentity(){
+  let team=(typeof tcUiActiveTeam==="function")?tcUiActiveTeam():{id:"zbiroh_default",name:"TJ Město Zbiroh"};
+  let teamId=team.id||"zbiroh_default";
+  let s=(typeof staff==="function")?staff():[];
+  let p=(typeof players==="function")?players():[];
+  let admins=s.filter(x=>x.role==="admin").map(x=>x.id);
+  let assistants=s.filter(x=>x.role!=="admin").map(x=>x.id);
+  return {
+    ownerId:(typeof tcOwnerId==="function")?tcOwnerId():"own_local",
+    teamId:teamId,
+    teamName:team.name||"Tým",
+    mainCoachId:admins[0]||null,
+    mainCoachIds:admins,
+    assistantIds:assistants,
+    playerIds:p.map(x=>x.id),
+    updated:new Date().toISOString()
+  };
+}
+function tcSaveTeamIdentity(){let i=tcBuildTeamIdentity();save(tcTeamIdentityKey(i.teamId),i);return i}
+function tcLoadTeamIdentity(){let teamId=(typeof tcUiActiveTeamId==="function")?tcUiActiveTeamId():"zbiroh_default";let d=load(tcTeamIdentityKey(teamId),null);if(!d)d=tcSaveTeamIdentity();return d}
+function tcIdentityRoleForUser(){
+  let i=tcLoadTeamIdentity();
+  if((typeof tcOwnerId==="function")&&i.ownerId===tcOwnerId()&&!currentStaffId&&!currentPlayerId)return "owner";
+  if(currentStaffId&&i.mainCoachIds&&i.mainCoachIds.includes(currentStaffId))return "admin";
+  if(currentStaffId&&i.assistantIds&&i.assistantIds.includes(currentStaffId))return "view";
+  if(currentPlayerId&&i.playerIds&&i.playerIds.includes(currentPlayerId))return "player";
+  return "owner";
+}
+function tcRefreshIdentity(){let i=tcSaveTeamIdentity();if(typeof tcCloudPushNow==="function")setTimeout(()=>tcCloudPushNow("identity"),300);return i}
+function tcRenderIdentityStatus(){let e=document.getElementById("identityStatus");if(!e||typeof tcLoadTeamIdentity!=="function")return;let i=tcLoadTeamIdentity();e.textContent="Identity: "+(i.teamName||"Tým")+" | hlavní trenér: "+(i.mainCoachId||"není")}
+
+
 function tcCurrentStaff(){return staff().find(s=>s.id===currentStaffId)||null}
-function tcCurrentRole(){let st=tcCurrentStaff();if(st)return st.role||"view";if(currentPlayerId)return "player";return "owner"}
+function tcCurrentRole(){
+  if(typeof tcIdentityRoleForUser==="function"&&!tcCurrentRole._lock){
+    try{tcCurrentRole._lock=true;return tcIdentityRoleForUser()}finally{tcCurrentRole._lock=false}
+  }
+  let st=tcCurrentStaff();if(st)return st.role||"view";if(currentPlayerId)return "player";return "owner"
+}
 function tcCan(area,action){
   let r=tcCurrentRole();
   if(r==="owner"||r==="admin")return true;
@@ -838,7 +880,7 @@ function renderExercises(){
 }
 
 function staff(){let s=tcTeamLoad(LS,null);if(!s){s=tcTeamId()==="zbiroh_default"?[{id:"pavel",name:"Pavel",role:"admin",code:tcAccessCode("coach")},{id:"kuba",name:"Kuba",role:"coach",code:tcAccessCode("coach")},{id:"rt",name:"Realizák",role:"view",code:tcAccessCode("coach")}]:[];tcTeamSave(LS,s)}let changed=false;s.forEach(x=>{if(!x.code){x.code=tcAccessCode("coach");changed=true}});if(changed)tcTeamSave(LS,s);return s}
-function setStaff(s){tcTeamSave(LS,s);tcScheduleCloudSave('staff');setTimeout(()=>tcCloudPushNow('staff'),700)}
+function setStaff(s){tcTeamSave(LS,s);if(typeof tcRefreshIdentity==="function")setTimeout(tcRefreshIdentity,50);if(typeof tcScheduleCloudSave==="function")tcScheduleCloudSave('staff');if(typeof tcCloudPushNow==="function")setTimeout(()=>tcCloudPushNow('staff'),700)}
 function roleText(r){return r==="admin"?"Hlavní trenér":r==="coach"?"Asistent trenéra":"RT - náhled"}
 function addStaff(){if(!tcGuard("staff","edit"))return;let n=pretty(document.getElementById("staffName").value);if(!n)return;let r=document.getElementById("staffRole").value;let s=staff();s.push(tcWithIdentity({id:Date.now()+"_"+Math.random().toString(16).slice(2),name:n,role:r,code:tcAccessCode(r==="admin"?"admin":"coach")}));setStaff(s);document.getElementById("staffName").value="";render();setTimeout(()=>tcCloudPushNow('staff'),300)}
 function deleteStaff(i){if(!tcGuard("staff","edit"))return;let s=staff();s.splice(i,1);setStaff(s);renderStaff()}
@@ -1141,6 +1183,7 @@ function tcBuildTeamSnapshot(){
     teamId: team.id || ((typeof tcUiActiveTeamId === "function") ? tcUiActiveTeamId() : "zbiroh_default"),
     teamName: team.name || "Tým",
     savedAt: new Date().toISOString(),
+    identity:(typeof tcLoadTeamIdentity==='function')?tcLoadTeamIdentity():null,
     data: {
       members: (typeof players === "function") ? players() : [],
       staff: (typeof staff === "function") ? staff() : [],
