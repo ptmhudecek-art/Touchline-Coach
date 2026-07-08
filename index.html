@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Touchline Coach</title>
+<!-- TC 3.1.1 Clean Test Build -->
 <style>
 :root{--bg:#0f1115;--card:#181b22;--text:#f3f5f7;--muted:#9aa3ad;--green:#46e26f;--red:#ff5d5d;--yellow:#ffd166;--blue:#4da3ff;--border:#2b303b}
 *{box-sizing:border-box}
@@ -162,15 +163,15 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
 
 </style>
 
-<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=12">
-<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png?v=12">
-<link rel="manifest" href="/manifest.webmanifest?v=12">
+<link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png?v=31">
+<link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png?v=31">
+<link rel="manifest" href="/manifest.webmanifest?v=31">
 <meta name="theme-color" content="#46e26f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Touchline">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=12">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png?v=31">
 
 </head>
 <body class="home-premium">
@@ -1560,7 +1561,7 @@ restore();render();
 <script>
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function () {
-    navigator.serviceWorker.register('/sw.js?v=12').catch(function (err) {
+    navigator.serviceWorker.register('/sw.js?v=31').catch(function (err) {
       console.log('Service worker registration failed:', err);
     });
   });
