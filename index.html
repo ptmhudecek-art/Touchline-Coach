@@ -327,7 +327,7 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
     <h3>Cloud</h3>
     <p class="small">TC 2.0.0 Cloud Bootstrap. Ověření spojení s Firebase.</p>
     <div class="row">
-      <button class="btn2" onclick="tcCheckCloud()">Ověřit cloud</button><button class="btn" onclick="tcSaveTeamToCloud()">☁ Uložit tým do cloudu</button><button class="btn2" onclick="tcLoadTeamFromCloud()">☁ Načíst tým z cloudu</button><button class="btn2" onclick="tcShowOwnerId()">Zobrazit Owner ID</button><button class="btn2" onclick="tcSetOwnerIdPrompt()">Nastavit Owner ID</button><button class="btn2" onclick="tcToggleCloudAutoSave()">Auto Save ON/OFF</button><button class="btn2" onclick="tcToggleLiveSync()">Live Sync ON/OFF</button>
+      <button class="btn2" onclick="tcCheckCloud()">Ověřit cloud</button><button class="btn" onclick="tcSaveTeamToCloud()">☁ Uložit tým do cloudu</button><button class="btn2" onclick="tcLoadTeamFromCloud()">☁ Načíst tým z cloudu</button><button class="btn2" onclick="tcShowOwnerId()">Zobrazit Owner ID</button><button class="btn2" onclick="tcSetOwnerIdPrompt()">Nastavit Owner ID</button><button class="btn2" onclick="tcToggleCloudAutoSave()">Auto Save ON/OFF</button><button class="btn2" onclick="tcToggleLiveSync()">Live Sync ON/OFF</button><button class="btn2" onclick="tcPublishGuestLogin()">Publikovat hráčský vstup</button>
     </div>
     <div id="cloudStatus" class="small"></div><div id="cloudAutoSaveState" class="small"></div><div id="cloudLiveSyncState" class="small"></div>
   </div>
@@ -926,32 +926,91 @@ function tcShowAppAfterLogin(){
   tab("home");
 }
 
-function guestLogin(){
+
+/* --- TC 3.2.1 Guest Cloud Login Fix ---
+Čisté zařízení nemá lokální hráče.
+Proto guest login nejdřív načte veřejný klubový snapshot z cloudu.
+*/
+const TC_PUBLIC_CLUB_ID = "zbiroh";
+
+function tcPublishGuestLogin(){
+  let e=document.getElementById("cloudStatus");
+  if(e)e.textContent="Publikuji hráčský vstup...";
+  if(!window.tcCloudPublishPublicClub){
+    if(e)e.textContent="Cloud funkce pro veřejný vstup není dostupná.";
+    return;
+  }
+  let ownerId=(typeof tcOwnerId==="function")?tcOwnerId():"own_local";
+  let teamId=(typeof tcUiActiveTeamId==="function")?tcUiActiveTeamId():"zbiroh_default";
+  window.tcCloudPublishPublicClub(TC_PUBLIC_CLUB_ID,ownerId,teamId).then(()=>{
+    if(e)e.textContent="Hráčský vstup publikován pro tým: "+teamId;
+  }).catch(err=>{
+    if(e)e.textContent="Chyba publikace vstupu: "+(err&&err.message?err.message:err);
+  });
+}
+
+async function tcGuestLoadPublicTeam(){
+  if(!window.tcCloudLoadPublicClub || !window.tcCloudLoadSnapshot){
+    throw new Error("Cloud veřejné přihlášení není připravené.");
+  }
+  let cfg=await window.tcCloudLoadPublicClub(TC_PUBLIC_CLUB_ID);
+  let snap=await window.tcCloudLoadSnapshot(cfg.ownerId,cfg.teamId);
+  localStorage.setItem("tc_owner_id_v01",cfg.ownerId);
+  if(typeof tcUiSelectTeam==="function"){
+    // tým nemusí existovat v lokálním seznamu, proto ho doplníme
+    let teams=tcUiTeams();
+    if(!teams.find(t=>t.id===cfg.teamId)){
+      teams.push({id:cfg.teamId,teamId:cfg.teamId,ownerId:cfg.ownerId,name:snap.teamName||"TJ Město Zbiroh"});
+      save(TC_UI_TEAMS_KEY,teams);
+    }
+    localStorage.setItem(TC_UI_ACTIVE_TEAM_KEY,cfg.teamId);
+  }
+  tcApplyTeamSnapshot(snap);
+  render();
+  return snap;
+}
+
+async function guestLoginCloudFirst(){
   let inp=document.getElementById("guestAccessCode");
   let code=(inp&&inp.value?inp.value:"").trim().toUpperCase();
   let msg=document.getElementById("guestMsg");
   if(!code){if(msg)msg.textContent="Zadej kód.";return;}
 
-  let st=staff().find(s=>String(s.code||"").toUpperCase()===code);
-  if(st){
-    currentStaffId=st.id;localStorage.setItem(LRT,st.id);
-    currentPlayerId=null;localStorage.removeItem(LL);
-    localStorage.setItem(TC_GUEST_DONE_KEY,"1");
-    if(msg)msg.textContent="Přihlášeno: "+st.name;
-    render();tcShowAppAfterLogin();return;
+  function tryLocal(){
+    let st=staff().find(s=>String(s.code||"").toUpperCase()===code);
+    if(st){
+      currentStaffId=st.id;localStorage.setItem(LRT,st.id);
+      currentPlayerId=null;localStorage.removeItem(LL);
+      localStorage.setItem(TC_GUEST_DONE_KEY,"1");
+      if(msg)msg.textContent="Přihlášeno: "+st.name;
+      render();tcShowAppAfterLogin();return true;
+    }
+    let p=players().find(x=>String(x.code||"").toUpperCase()===code);
+    if(p){
+      currentPlayerId=p.id;localStorage.setItem(LL,p.id);
+      currentStaffId=null;localStorage.removeItem(LRT);
+      localStorage.setItem(TC_GUEST_DONE_KEY,"1");
+      if(msg)msg.textContent="Přihlášeno: "+p.name;
+      render();tcShowAppAfterLogin();return true;
+    }
+    return false;
   }
 
-  let p=players().find(x=>String(x.code||"").toUpperCase()===code);
-  if(p){
-    currentPlayerId=p.id;localStorage.setItem(LL,p.id);
-    currentStaffId=null;localStorage.removeItem(LRT);
-    localStorage.setItem(TC_GUEST_DONE_KEY,"1");
-    if(msg)msg.textContent="Přihlášeno: "+p.name;
-    render();tcShowAppAfterLogin();return;
-  }
+  if(tryLocal())return;
 
-  if(msg)msg.textContent="Kód nenalezen. Zkontroluj kód nebo nejdřív načti tým z cloudu.";
+  if(msg)msg.textContent="Načítám tým z cloudu...";
+  try{
+    await tcGuestLoadPublicTeam();
+    if(!tryLocal()){
+      if(msg)msg.textContent="Kód nenalezen ani po načtení z cloudu.";
+    }
+  }catch(err){
+    if(msg)msg.textContent="Cloud přihlášení chyba: "+(err&&err.message?err.message:err);
+  }
 }
+
+
+function guestLogin(){guestLoginCloudFirst()}
 
 function tcPublicStart(){
   let logged=!!localStorage.getItem(LL)||!!localStorage.getItem(LRT)||localStorage.getItem(TC_GUEST_DONE_KEY)==="1";
@@ -1694,6 +1753,25 @@ window.tcCloudLoadSnapshot = async function(ownerId, teamId){
   if(!snap.exists()){
     throw new Error("Snapshot v cloudu nenalezen.");
   }
+  return snap.data();
+};
+
+window.tcCloudPublishPublicClub = async function(publicId, ownerId, teamId){
+  const ref = doc(tcFirestore, "publicClubs", publicId);
+  await setDoc(ref, {
+    publicId,
+    ownerId,
+    teamId,
+    updated: serverTimestamp()
+  }, { merge: true });
+  const snap = await getDoc(ref);
+  return snap.exists();
+};
+
+window.tcCloudLoadPublicClub = async function(publicId){
+  const ref = doc(tcFirestore, "publicClubs", publicId);
+  const snap = await getDoc(ref);
+  if(!snap.exists())throw new Error("Veřejný vstup klubu není nastaven.");
   return snap.data();
 };
 
