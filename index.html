@@ -182,7 +182,21 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
 </header>
 
 <main>
-<section id="home" class="page active">
+
+<section id="guest" class="page active">
+  <div class="card" style="margin-top:28px">
+    <h2>Touchline Coach</h2>
+    <p class="small">Zadej přístupový kód.</p>
+    <input id="guestAccessCode" placeholder="Např. TC-ZBRH-P-XXXXXX">
+    <div class="row" style="margin-top:10px">
+      <button class="btn" onclick="guestLogin()">Přihlásit</button>
+      <button class="btn2 hidden" id="guestOwnerBtn" onclick="tcSwitchToOwner()">👑 OWNER</button>
+    </div>
+    <div id="guestMsg" class="small"></div>
+  </div>
+</section>
+
+<section id="home" class="page">
   <input id="coachPhotoInput" class="hidden" type="file" accept="image/*">
   <div class="tcHero">
     <div class="tcTop">
@@ -894,6 +908,58 @@ function tcSwitchToOwner(){
 }
 
 
+
+/* --- TC 3.2.0 Guest Login Screen --- */
+const TC_GUEST_DONE_KEY = "tc_guest_login_done_v01";
+
+function tcIsOwnerDevice(){return !!localStorage.getItem("tc_owner_id_v01")}
+
+function tcShowGuest(){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  let g=document.getElementById("guest");if(g)g.classList.add("active");
+  let ob=document.getElementById("guestOwnerBtn");if(ob)ob.classList.toggle("hidden",!tcIsOwnerDevice());
+  document.querySelectorAll('nav button').forEach(b=>{b.classList.remove('active');b.style.display="none"});
+}
+
+function tcShowAppAfterLogin(){
+  document.querySelectorAll('nav button').forEach(b=>b.style.display="");
+  tab("home");
+}
+
+function guestLogin(){
+  let inp=document.getElementById("guestAccessCode");
+  let code=(inp&&inp.value?inp.value:"").trim().toUpperCase();
+  let msg=document.getElementById("guestMsg");
+  if(!code){if(msg)msg.textContent="Zadej kód.";return;}
+
+  let st=staff().find(s=>String(s.code||"").toUpperCase()===code);
+  if(st){
+    currentStaffId=st.id;localStorage.setItem(LRT,st.id);
+    currentPlayerId=null;localStorage.removeItem(LL);
+    localStorage.setItem(TC_GUEST_DONE_KEY,"1");
+    if(msg)msg.textContent="Přihlášeno: "+st.name;
+    render();tcShowAppAfterLogin();return;
+  }
+
+  let p=players().find(x=>String(x.code||"").toUpperCase()===code);
+  if(p){
+    currentPlayerId=p.id;localStorage.setItem(LL,p.id);
+    currentStaffId=null;localStorage.removeItem(LRT);
+    localStorage.setItem(TC_GUEST_DONE_KEY,"1");
+    if(msg)msg.textContent="Přihlášeno: "+p.name;
+    render();tcShowAppAfterLogin();return;
+  }
+
+  if(msg)msg.textContent="Kód nenalezen. Zkontroluj kód nebo nejdřív načti tým z cloudu.";
+}
+
+function tcPublicStart(){
+  let logged=!!localStorage.getItem(LL)||!!localStorage.getItem(LRT)||localStorage.getItem(TC_GUEST_DONE_KEY)==="1";
+  if(!logged)tcShowGuest();
+  else document.querySelectorAll('nav button').forEach(b=>b.style.display="");
+}
+
+
 function accessLogin(){
   let code=(document.getElementById('accessCode').value||'').trim().toUpperCase();
   let msg=document.getElementById('accessMsg');
@@ -901,26 +967,20 @@ function accessLogin(){
 
   let st=staff().find(s=>String(s.code||'').toUpperCase()===code);
   if(st){
-    currentStaffId=st.id;
-    localStorage.setItem(LRT,st.id);
-    currentPlayerId=null;
-    localStorage.removeItem(LL);
+    currentStaffId=st.id;localStorage.setItem(LRT,st.id);
+    currentPlayerId=null;localStorage.removeItem(LL);
+    localStorage.setItem(TC_GUEST_DONE_KEY,"1");
     if(msg)msg.textContent='Přihlášen RT: '+st.name+' • '+roleText(st.role);
-    render();
-    tab('home');
-    return;
+    render();tab('home');return;
   }
 
   let p=players().find(x=>String(x.code||'').toUpperCase()===code);
   if(p){
-    currentPlayerId=p.id;
-    localStorage.setItem(LL,p.id);
-    currentStaffId=null;
-    localStorage.removeItem(LRT);
+    currentPlayerId=p.id;localStorage.setItem(LL,p.id);
+    currentStaffId=null;localStorage.removeItem(LRT);
+    localStorage.setItem(TC_GUEST_DONE_KEY,"1");
     if(msg)msg.textContent='Přihlášena hráčka: '+p.name;
-    render();
-    tab('login');
-    return;
+    render();tab('login');return;
   }
 
   if(msg)msg.textContent='Kód nenalezen.';
@@ -1528,7 +1588,7 @@ function render(){
   if(typeof tcRenderIdentityPanel==="function")tcRenderIdentityPanel();
   if(typeof tcApplyRoleBasedUI==="function")tcApplyRoleBasedUI();
 }
-restore();render();
+restore();render();tcPublicStart();
 </script>
 
 <script>
