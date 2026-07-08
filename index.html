@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Touchline Coach</title>
+<!-- TC 3.4.0 Cloud Media Storage -->
 <!-- TC 3.3.0 Training UX -->
 <!-- TC 3.1.1 Clean Test Build -->
 <style>
@@ -653,42 +654,9 @@ function tcRestoreEditorTemplate(){
 function tcFileButton(label,enabled,onclick){
   return enabled ? `<button class="btn" onclick="${onclick}">${label}</button>` : `<button class="btn2" disabled style="opacity:.35">${label}</button>`;
 }
-async function tcOpenTrainingFile(date){
-  let pdf=await getFile("pdf_"+date);
-  if(pdf){window.open(URL.createObjectURL(pdf),"_blank");return;}
-  let photo=await getFile("photo_"+date);
-  if(photo)openImageFile(photo,"Soubor tréninku");
-}
-async function tcOpenTrainingVideo(date,i){
-  let f=await getFile("video_"+date+"_"+i);
-  if(f)playFile(f,"Video ke cvičení");
-}
-async function tcRenderReadonlyTraining(date){
-  let editor=document.getElementById("editor");
-  if(!editor)return;
-  let t=trs()[date]||{time:"",place:"",blocks:[]};
-  let pdf=await getFile("pdf_"+date);
-  let photo=await getFile("photo_"+date);
-  let hasFile=!!(pdf||photo);
-  let out=`<div class="card" style="background:#11141a">
-    <div class="infoLine"><span class="ico">◷</span><span>${esc(t.time||"čas nezadán")}</span></div>
-    <div class="infoLine"><span class="ico">⌖</span><span>${esc(t.place||"místo nezadáno")}</span></div>
-    <div class="row" style="margin-top:12px">${tcFileButton("📄 Soubor",hasFile,`tcOpenTrainingFile('${date}')`)}</div>
-  </div>`;
-  out+=`<div class="card"><h3>Bloky tréninku</h3>`;
-  let blocks=t.blocks||[];
-  if(!blocks.length)out+=`<p class="small">Trénink zatím nemá vyplněné bloky.</p>`;
-  for(let i=0;i<blocks.length;i++){
-    let b=blocks[i];
-    let v=await getFile("video_"+date+"_"+i);
-    out+=`<div class="block"><div class="space"><b>⚽ ${esc(b.name||"Část tréninku")}</b><span class="pill blue">${esc(b.min||"")}´</span></div>`;
-    if(v)out+=`<div class="mediaIcons"><button class="iconBtn" onclick="tcOpenTrainingVideo('${date}',${i})">🎥</button></div>`;
-    out+=`</div>`;
-  }
-  out+=`</div>`;
-  editor.innerHTML=out;
-  editor.dataset.mode="readonly";
-}
+async function tcOpenTrainingFile(date){let t=trs()[date]||{};if(t.media&&t.media.pdfUrl){window.open(t.media.pdfUrl,'_blank');return;}if(t.media&&t.media.photoUrl){window.open(t.media.photoUrl,'_blank');return;}let pdf=await getFile('pdf_'+date);if(pdf){window.open(URL.createObjectURL(pdf),'_blank');return;}let photo=await getFile('photo_'+date);if(photo)openImageFile(photo,'Soubor tréninku')}
+async function tcOpenTrainingVideo(date,i){let t=trs()[date]||{};let b=(t.blocks||[])[i]||{};if(b.media&&b.media.videoUrl){window.open(b.media.videoUrl,'_blank');return;}let f=await getFile('video_'+date+'_'+i);if(f)playFile(f,'Video ke cvičení')}
+async function tcRenderReadonlyTraining(date){let editor=document.getElementById('editor');if(!editor)return;let t=trs()[date]||{time:'',place:'',blocks:[]};let pdf=await getFile('pdf_'+date);let photo=await getFile('photo_'+date);let hasFile=!!(pdf||photo||(t.media&&(t.media.pdfUrl||t.media.photoUrl)));let out=`<div class="card" style="background:#11141a"><div class="infoLine"><span class="ico">◷</span><span>${esc(t.time||'čas nezadán')}</span></div><div class="infoLine"><span class="ico">⌖</span><span>${esc(t.place||'místo nezadáno')}</span></div><div class="row" style="margin-top:12px">${tcFileButton('📄 Soubor',hasFile,`tcOpenTrainingFile('${date}')`)}</div></div>`;out+=`<div class="card"><h3>Bloky tréninku</h3>`;let blocks=t.blocks||[];if(!blocks.length)out+=`<p class="small">Trénink zatím nemá vyplněné bloky.</p>`;for(let i=0;i<blocks.length;i++){let b=blocks[i];let v=await getFile('video_'+date+'_'+i);let hasVideo=!!(v||(b.media&&b.media.videoUrl));out+=`<div class="block"><div class="space"><b>⚽ ${esc(b.name||'Část tréninku')}</b><span class="pill blue">${esc(b.min||'')}´</span></div>`;if(hasVideo)out+=`<div class="mediaIcons"><button class="iconBtn" onclick="tcOpenTrainingVideo('${date}',${i})">🎥</button></div>`;out+=`</div>`;}out+=`</div>`;editor.innerHTML=out;editor.dataset.mode='readonly'}
 
 
 function selectDay(date){
@@ -727,19 +695,16 @@ function saveTraining(){if(!tcGuard("calendar","edit"))return;if(!selectedDate)r
 function deleteTraining(){if(!tcGuard("calendar","edit"))return;if(!selectedDate)return;let t=trs();delete t[selectedDate];setTrs(t);setAttObj({});document.getElementById('editor').classList.add('hidden');selectedDate=null;render()}
 
 
-async function savePhoto(){if(!tcGuard("calendar","edit"))return;
-  if(!selectedDate)return alert('Vyber den.');
-  let f=document.getElementById('photoFile').files[0];
-  if(!f)return alert('Vyber fotku.');
-  await putFile(photoKey(),f);
-  await updatePhotoState();
-  render();
-}
-async function openPhoto(){
-  let f=await getFile(photoKey());
-  if(!f)return alert('Foto není vložené.');
-  openImageFile(f,'Foto nákresu');
-}
+
+/* --- TC 3.4.0 Cloud Media Storage --- */
+function tcMediaBasePath(){let owner=(typeof tcOwnerId==='function')?tcOwnerId():'own_local';let team=(typeof tcUiActiveTeamId==='function')?tcUiActiveTeamId():'zbiroh_default';return 'owners/'+owner+'/teams/'+team}
+function tcFileExt(file,fallback){let n=file&&file.name?file.name:'';let m=n.match(/\.([a-zA-Z0-9]+)$/);return m?m[1].toLowerCase():fallback}
+async function tcUploadTrainingMedia(kind,date,index,file){if(!window.tcCloudUploadMedia)throw new Error('Firebase Storage není připravený.');let ext=tcFileExt(file,kind==='pdf'?'pdf':kind==='photo'?'jpg':'mp4');let idx=(typeof index==='number')?('_'+index):'';let path=tcMediaBasePath()+'/trainings/'+date+'/'+kind+idx+'.'+ext;return await window.tcCloudUploadMedia(path,file)}
+function tcSetTrainingMedia(date,patch){let all=trs();let t=all[date]||{time:'',place:'',blocks:[]};t.media=Object.assign({},t.media||{},patch||{});all[date]=t;setTrs(all)}
+function tcSetBlockMedia(date,i,patch){let all=trs();let t=all[date]||{time:'',place:'',blocks:[]};if(!t.blocks)t.blocks=[];if(!t.blocks[i])t.blocks[i]={name:'',min:''};t.blocks[i].media=Object.assign({},t.blocks[i].media||{},patch||{});all[date]=t;setTrs(all)}
+
+async function savePhoto(){if(!tcGuard('calendar','edit'))return;if(!selectedDate)return alert('Vyber den.');let f=document.getElementById('photoFile').files[0];if(!f)return alert('Vyber fotku.');await putFile(photoKey(),f);try{let url=await tcUploadTrainingMedia('photo',selectedDate,null,f);tcSetTrainingMedia(selectedDate,{photoUrl:url,photoName:f.name,photoType:f.type||'image/jpeg'});}catch(err){alert('Foto uloženo lokálně, cloud upload selhal: '+(err&&err.message?err.message:err));}await updatePhotoState();render()}
+async function openPhoto(){let t=trs()[selectedDate]||{};if(t.media&&t.media.photoUrl){window.open(t.media.photoUrl,'_blank');return;}let f=await getFile(photoKey());if(!f)return alert('Foto není vložené.');openImageFile(f,'Foto nákresu')}
 async function deletePhoto(){if(!tcGuard("calendar","edit"))return;
   await delFile(photoKey());
   let inp=document.getElementById('photoFile');
@@ -747,7 +712,7 @@ async function deletePhoto(){if(!tcGuard("calendar","edit"))return;
   await updatePhotoState();
   render();
 }
-async function updatePhotoState(){let e=document.getElementById('photoState');if(!e||!selectedDate)return;if(!tcIsAdminLike()){e.textContent='';return;}let f=await getFile(photoKey());e.textContent=f?'Foto uložené: '+f.name:'Foto zatím není vložené.'}
+async function updatePhotoState(){let e=document.getElementById('photoState');if(!e||!selectedDate)return;if(!tcIsAdminLike()){e.textContent='';return;}let t=trs()[selectedDate]||{};let f=await getFile(photoKey());e.textContent=(f||(t.media&&t.media.photoUrl))?'Foto uložené'+(f?': '+f.name:(t.media.photoName?': '+t.media.photoName:'')):'Foto zatím není vložené.'}
 function openImageFile(f,title){
   tab('home');
   document.getElementById('homeDetail').classList.remove('hidden');
@@ -756,14 +721,14 @@ function openImageFile(f,title){
   box.innerHTML=`<h3>${title}</h3><img src="${URL.createObjectURL(f)}" style="width:100%;border-radius:12px;background:#000"><button class="btn2" onclick="document.getElementById('playerBox').classList.add('hidden')">Zavřít foto</button>`;
 }
 
-async function savePdf(){if(!tcGuard("calendar","edit"))return;if(!selectedDate)return alert('Vyber den.');let f=document.getElementById('pdfFile').files[0];if(!f)return alert('Vyber PDF.');await putFile(pdfKey(),f);await updatePdfState();render()}
-async function openPdf(){let f=await getFile(pdfKey());if(!f)return alert('PDF není vložené.');window.open(URL.createObjectURL(f),'_blank')}
+async function savePdf(){if(!tcGuard('calendar','edit'))return;if(!selectedDate)return alert('Vyber den.');let f=document.getElementById('pdfFile').files[0];if(!f)return alert('Vyber PDF.');await putFile(pdfKey(),f);try{let url=await tcUploadTrainingMedia('pdf',selectedDate,null,f);tcSetTrainingMedia(selectedDate,{pdfUrl:url,pdfName:f.name,pdfType:f.type||'application/pdf'});}catch(err){alert('PDF uloženo lokálně, cloud upload selhal: '+(err&&err.message?err.message:err));}await updatePdfState();render()}
+async function openPdf(){let t=trs()[selectedDate]||{};if(t.media&&t.media.pdfUrl){window.open(t.media.pdfUrl,'_blank');return;}let f=await getFile(pdfKey());if(!f)return alert('PDF není vložené.');window.open(URL.createObjectURL(f),'_blank')}
 async function deletePdf(){if(!tcGuard("calendar","edit"))return;await delFile(pdfKey());updatePdfState();render()}
-async function updatePdfState(){let e=document.getElementById('pdfState');if(!e||!selectedDate)return;if(!tcIsAdminLike()){e.textContent='';return;}let f=await getFile(pdfKey());e.textContent=f?'PDF uložené: '+f.name:'PDF zatím není vložené.'}
-async function saveVideo(i){if(!tcGuard("calendar","edit"))return;if(!selectedDate)return alert('Vyber den.');let inp=document.querySelector('.bv[data-i="'+i+'"]'),f=inp&&inp.files[0];if(!f)return alert('Vyber MP4.');await putFile('video_'+selectedDate+'_'+i,f);await updateVideoStates();render()}
-async function playVideo(i){if(!selectedDate)return;let f=await getFile('video_'+selectedDate+'_'+i);if(!f)return alert('MP4 není vložené.');playFile(f,'Video ke cvičení')}
+async function updatePdfState(){let e=document.getElementById('pdfState');if(!e||!selectedDate)return;if(!tcIsAdminLike()){e.textContent='';return;}let t=trs()[selectedDate]||{};let f=await getFile(pdfKey());e.textContent=(f||(t.media&&t.media.pdfUrl))?'PDF uložené'+(f?': '+f.name:(t.media.pdfName?': '+t.media.pdfName:'')):'PDF zatím není vložené.'}
+async function saveVideo(i){if(!tcGuard('calendar','edit'))return;if(!selectedDate)return alert('Vyber den.');let inp=document.querySelector('.bv[data-i="'+i+'"]'),f=inp&&inp.files[0];if(!f)return alert('Vyber MP4.');await putFile('video_'+selectedDate+'_'+i,f);try{let url=await tcUploadTrainingMedia('video',selectedDate,i,f);tcSetBlockMedia(selectedDate,i,{videoUrl:url,videoName:f.name,videoType:f.type||'video/mp4'});}catch(err){alert('Video uloženo lokálně, cloud upload selhal: '+(err&&err.message?err.message:err));}await updateVideoStates();render()}
+async function playVideo(i){if(!selectedDate)return;let t=trs()[selectedDate]||{};let b=(t.blocks||[])[i]||{};if(b.media&&b.media.videoUrl){window.open(b.media.videoUrl,'_blank');return;}let f=await getFile('video_'+selectedDate+'_'+i);if(!f)return alert('MP4 není vložené.');playFile(f,'Video ke cvičení')}
 async function deleteVideo(i){if(!tcGuard("calendar","edit"))return;await delFile('video_'+selectedDate+'_'+i);updateVideoStates();render()}
-async function updateVideoStates(){if(!selectedDate)return;if(!tcIsAdminLike())return;for(let e of document.querySelectorAll('[id^=vs_]')){let i=e.id.split('_')[1],f=await getFile('video_'+selectedDate+'_'+i);e.textContent=f?'✓ MP4 uložené: '+f.name:'MP4 nevloženo'}}
+async function updateVideoStates(){if(!selectedDate)return;if(!tcIsAdminLike())return;let t=trs()[selectedDate]||{};for(let e of document.querySelectorAll('[id^=vs_]')){let i=e.id.split('_')[1],f=await getFile('video_'+selectedDate+'_'+i);let b=(t.blocks||[])[Number(i)]||{};e.textContent=(f||(b.media&&b.media.videoUrl))?'✓ MP4 uložené'+(f?': '+f.name:(b.media.videoName?': '+b.media.videoName:'')):'MP4 nevloženo'}}
 
 async function renderHomeTraining(){
   let t=trs(),key=nearestTrainingKey();
@@ -1761,6 +1726,7 @@ Zatím nemění lokální ukládání dat.
 */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-storage.js";
 
 
 const firebaseConfig = {
@@ -1775,10 +1741,12 @@ const firebaseConfig = {
 
 const tcFirebaseApp = initializeApp(firebaseConfig);
 const tcFirestore = getFirestore(tcFirebaseApp);
+const tcStorage = getStorage(tcFirebaseApp);
 
 window.tcCloud = {
   app: tcFirebaseApp,
   db: tcFirestore,
+  storage: tcStorage,
   ready: true,
   projectId: firebaseConfig.projectId
 };
@@ -1792,6 +1760,14 @@ window.tcCloudPing = async function(){
   }, { merge: true });
   const snap = await getDoc(ref);
   return snap.exists();
+};
+
+
+window.tcCloudUploadMedia = async function(path, file){
+  if(!file)throw new Error('Chybí soubor.');
+  const r = ref(tcStorage, String(path||'').replace(/^\/+/,''));
+  await uploadBytes(r, file, { contentType: file.type || 'application/octet-stream' });
+  return await getDownloadURL(r);
 };
 
 window.tcCloudSaveSnapshot = async function(snapshot){
