@@ -206,6 +206,28 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
 }
 </style>
 
+
+<style>
+/* TC 3.5.1 Remove Media Controls */
+#pdfFile,
+#photoFile,
+#pdfState,
+#photoState,
+button[onclick*="savePdf"],
+button[onclick*="openPdf"],
+button[onclick*="deletePdf"],
+button[onclick*="savePhoto"],
+button[onclick*="openPhoto"],
+button[onclick*="deletePhoto"],
+button[onclick*="saveVideo"],
+button[onclick*="playVideo"],
+button[onclick*="deleteVideo"],
+.bv,
+[id^="vs_"]{
+  display:none !important;
+}
+</style>
+
 </head>
 <body class="home-premium">
 <header>
@@ -286,7 +308,7 @@ nav button{padding-bottom:calc(13px + env(safe-area-inset-bottom,0px) * .25)}
       <div class="row"><input id="trTime" placeholder="Čas 18:00–19:30"><input id="trPlace" placeholder="Místo"></div>
       <div class="card" style="background:#11141a">
         <h3>Přehled tréninku</h3>
-        <p class="small">Vlož PDF nebo fotku nákresu z papíru.</p>
+        
         <input id="pdfFile" type="file" accept="application/pdf">
         <div class="row">
           <button class="btn2" onclick="savePdf()">Uložit PDF</button>
@@ -735,6 +757,37 @@ function tcAutoGrow(el){
 function tcGrowAllDescriptions(){
   document.querySelectorAll(".tcDesc").forEach(tcAutoGrow);
 }
+
+/* --- TC 3.5.1 Remove Media Controls --- */
+function tcRemoveMediaControlsHard(){
+  const killSelectors=[
+    "#pdfFile","#photoFile","#pdfState","#photoState",
+    "button[onclick*='savePdf']","button[onclick*='openPdf']","button[onclick*='deletePdf']",
+    "button[onclick*='savePhoto']","button[onclick*='openPhoto']","button[onclick*='deletePhoto']",
+    "button[onclick*='saveVideo']","button[onclick*='playVideo']","button[onclick*='deleteVideo']",
+    ".bv","[id^='vs_']"
+  ];
+  killSelectors.forEach(sel=>{
+    document.querySelectorAll(sel).forEach(e=>{
+      let txt=(e.textContent||"")+(e.id||"")+(e.className||"");
+      let row=e.closest(".row")||e.closest(".mediaIcons")||e;
+      row.classList.add("hidden");
+      row.style.display="none";
+    });
+  });
+
+  document.querySelectorAll("#editor .card,#editor .block,#editor .row").forEach(e=>{
+    let t=(e.textContent||"").toLowerCase();
+    if(t.includes("pdf")||t.includes("foto")||t.includes("mp4")||t.includes("soubor")||t.includes("nákres")){
+      if(!e.querySelector(".bn") && !e.querySelector(".bm") && !e.querySelector(".tcDesc")){
+        e.classList.add("hidden");
+        e.style.display="none";
+      }
+    }
+  });
+}
+
+
 function tcHideMediaControls(){
   document.querySelectorAll('#editor input[type=file]').forEach(e=>{
     let row=e.closest('.row')||e;
@@ -745,6 +798,8 @@ function tcHideMediaControls(){
     if(txt.includes('PDF')||txt.includes('Foto')||txt.includes('MP4')||txt.includes('Přehrát'))b.classList.add('hidden');
   });
   ['pdfState','photoState'].forEach(id=>{let e=document.getElementById(id);if(e)e.textContent='';});
+
+  tcRemoveMediaControlsHard();
 }
 function tcTrainingReadOnlyHtml(date){
   let t=trs()[date]||{time:"",place:"",blocks:[]};
@@ -785,6 +840,8 @@ function selectDay(date){
 
   renderBlocks(t.blocks||[]);
   setTimeout(tcHideMediaControls,50);
+
+  setTimeout(tcRemoveMediaControlsHard,80);
 }
 function renderBlocks(blocks){
   let box=document.getElementById('blocks');
@@ -1828,8 +1885,11 @@ function render(){
   if(typeof tcApplyPermissionsUI==="function")tcApplyPermissionsUI();
   if(typeof tcRenderIdentityPanel==="function")tcRenderIdentityPanel();
   if(typeof tcApplyRoleBasedUI==="function")tcApplyRoleBasedUI();tcHideMediaControls();
+
+  setTimeout(tcRemoveMediaControlsHard,80);
 }
 restore();render();tcPublicStart();
+setTimeout(tcRemoveMediaControlsHard,500);
 </script>
 
 <script>
