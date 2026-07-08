@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Touchline Coach</title>
+<!-- TC 3.3.0 Training UX -->
 <!-- TC 3.1.1 Clean Test Build -->
 <style>
 :root{--bg:#0f1115;--card:#181b22;--text:#f3f5f7;--muted:#9aa3ad;--green:#46e26f;--red:#ff5d5d;--yellow:#ffd166;--blue:#4da3ff;--border:#2b303b}
@@ -631,36 +632,89 @@ function renderSummary(){let s={yes:0,injury:0,work:0,other:0,none:0},a=att();pl
 
 function renderCal(){let grid=document.getElementById('cal');grid.innerHTML='';let months=['leden','únor','březen','duben','květen','červen','červenec','srpen','září','říjen','listopad','prosinec'];document.getElementById('monthTitle').textContent=months[viewDate.getMonth()]+' '+viewDate.getFullYear();['Po','Út','St','Čt','Pá','So','Ne'].forEach(d=>grid.innerHTML+='<div class=head>'+d+'</div>');let y=viewDate.getFullYear(),m=viewDate.getMonth(),first=new Date(y,m,1),start=(first.getDay()+6)%7,days=new Date(y,m+1,0).getDate(),t=trs(),today=iso(new Date());for(let i=0;i<start;i++)grid.innerHTML+='<div></div>';for(let d=1;d<=days;d++){let date=iso(new Date(y,m,d));grid.innerHTML+=`<button class="day ${t[date]?'has':''} ${date===today?'today':''}" onclick="selectDay('${date}')">${d}${t[date]?'<span class=dot></span>':''}</button>`}}
 function moveMonth(n){viewDate=new Date(viewDate.getFullYear(),viewDate.getMonth()+n,1);renderCal()}
+
+/* --- TC 3.3.0 Training UX ---
+Admin = editor.
+Hráč / RT náhled = čistý prohlížeč tréninku.
+*/
+let tcEditorTemplate = null;
+
+function tcEnsureEditorTemplate(){
+  let editor=document.getElementById("editor");
+  if(editor && !tcEditorTemplate)tcEditorTemplate=editor.innerHTML;
+}
+function tcRestoreEditorTemplate(){
+  let editor=document.getElementById("editor");
+  if(editor && tcEditorTemplate && editor.dataset.mode==="readonly"){
+    editor.innerHTML=tcEditorTemplate;
+    editor.dataset.mode="edit";
+  }
+}
+function tcFileButton(label,enabled,onclick){
+  return enabled ? `<button class="btn" onclick="${onclick}">${label}</button>` : `<button class="btn2" disabled style="opacity:.35">${label}</button>`;
+}
+async function tcOpenTrainingFile(date){
+  let pdf=await getFile("pdf_"+date);
+  if(pdf){window.open(URL.createObjectURL(pdf),"_blank");return;}
+  let photo=await getFile("photo_"+date);
+  if(photo)openImageFile(photo,"Soubor tréninku");
+}
+async function tcOpenTrainingVideo(date,i){
+  let f=await getFile("video_"+date+"_"+i);
+  if(f)playFile(f,"Video ke cvičení");
+}
+async function tcRenderReadonlyTraining(date){
+  let editor=document.getElementById("editor");
+  if(!editor)return;
+  let t=trs()[date]||{time:"",place:"",blocks:[]};
+  let pdf=await getFile("pdf_"+date);
+  let photo=await getFile("photo_"+date);
+  let hasFile=!!(pdf||photo);
+  let out=`<div class="card" style="background:#11141a">
+    <div class="infoLine"><span class="ico">◷</span><span>${esc(t.time||"čas nezadán")}</span></div>
+    <div class="infoLine"><span class="ico">⌖</span><span>${esc(t.place||"místo nezadáno")}</span></div>
+    <div class="row" style="margin-top:12px">${tcFileButton("📄 Soubor",hasFile,`tcOpenTrainingFile('${date}')`)}</div>
+  </div>`;
+  out+=`<div class="card"><h3>Bloky tréninku</h3>`;
+  let blocks=t.blocks||[];
+  if(!blocks.length)out+=`<p class="small">Trénink zatím nemá vyplněné bloky.</p>`;
+  for(let i=0;i<blocks.length;i++){
+    let b=blocks[i];
+    let v=await getFile("video_"+date+"_"+i);
+    out+=`<div class="block"><div class="space"><b>⚽ ${esc(b.name||"Část tréninku")}</b><span class="pill blue">${esc(b.min||"")}´</span></div>`;
+    if(v)out+=`<div class="mediaIcons"><button class="iconBtn" onclick="tcOpenTrainingVideo('${date}',${i})">🎥</button></div>`;
+    out+=`</div>`;
+  }
+  out+=`</div>`;
+  editor.innerHTML=out;
+  editor.dataset.mode="readonly";
+}
+
+
 function selectDay(date){
   selectedDate=date;
   document.getElementById('selTitle').textContent='Trénink '+date.split('-').reverse().join('.');
-  document.getElementById('editor').classList.remove('hidden');
+  let editor=document.getElementById('editor');
+  if(editor)editor.classList.remove('hidden');
+  tcEnsureEditorTemplate();
+  if(!tcIsAdminLike()){
+    tcRenderReadonlyTraining(date);
+    return;
+  }
+  tcRestoreEditorTemplate();
   let t=trs()[date]||{time:'',place:'',blocks:[]};
   document.getElementById('trTime').value=t.time||'';
   document.getElementById('trPlace').value=t.place||'';
   renderBlocks(t.blocks||[]);
-
-  let editor=document.getElementById('editor');
-  if(editor){
-    editor.querySelectorAll('input[type=file], #pdfFile, #photoFile').forEach(e=>e.closest('.card')?null:e.classList.toggle('hidden',!tcIsAdminLike()));
-    ['trTime','trPlace'].forEach(id=>{let e=document.getElementById(id);if(e)e.disabled=!tcIsAdminLike();});
-  }
-
-  document.querySelectorAll('#editor button').forEach(btn=>{
-    let txt=(btn.textContent||'').trim();
-    let viewAllowed = txt.includes('Otevřít') || txt.includes('Přehrát') || txt.includes('Zavřít');
-    if(!tcIsAdminLike() && !viewAllowed) btn.classList.add('hidden');
-    else btn.classList.remove('hidden');
-  });
-
   setTimeout(()=>{updatePdfState();updatePhotoState();updateVideoStates()},50);
 }
 function renderBlocks(b){
   let box=document.getElementById('blocks');
+  if(!box)return;
   box.innerHTML='';
   b.forEach((x,i)=>{
     if(!tcIsAdminLike()){
-      box.innerHTML+=`<div class=block><div class=space><b>${esc(x.name||'Část tréninku')}</b><span class="pill blue">${esc(x.min||'')}´</span></div><div class=mediaIcons><button class=iconBtn onclick="playVideo(${i})">🎥</button></div></div>`;
+      box.innerHTML+=`<div class=block><div class=space><b>⚽ ${esc(x.name||'Část tréninku')}</b><span class="pill blue">${esc(x.min||'')}´</span></div></div>`;
     }else{
       box.innerHTML+=`<div class=block><div class=blockLine><input class=bn value="${esc(x.name||'')}" placeholder="Část tréninku" onkeydown="if(event.key==='Enter'){event.preventDefault();addBlock()}"><input class=bm value="${esc(x.min||'')}" placeholder="20´"><button class=danger onclick="removeBlock(${i})">×</button></div><div class=row style="margin-top:8px"><input class=bv type=file accept="video/mp4" data-i="${i}" style="max-width:260px"><button class=btn2 onclick="saveVideo(${i})">Uložit MP4</button><button class=btn2 onclick="playVideo(${i})">Přehrát</button><button class=danger onclick="deleteVideo(${i})">Smazat</button><span class=small id="vs_${i}">MP4 nevloženo</span></div></div>`;
     }
@@ -693,12 +747,7 @@ async function deletePhoto(){if(!tcGuard("calendar","edit"))return;
   await updatePhotoState();
   render();
 }
-async function updatePhotoState(){
-  let e=document.getElementById('photoState');
-  if(!e||!selectedDate)return;
-  let f=await getFile(photoKey());
-  e.textContent=f?'Foto uložené: '+f.name:'Foto zatím není vložené.';
-}
+async function updatePhotoState(){let e=document.getElementById('photoState');if(!e||!selectedDate)return;if(!tcIsAdminLike()){e.textContent='';return;}let f=await getFile(photoKey());e.textContent=f?'Foto uložené: '+f.name:'Foto zatím není vložené.'}
 function openImageFile(f,title){
   tab('home');
   document.getElementById('homeDetail').classList.remove('hidden');
@@ -710,11 +759,11 @@ function openImageFile(f,title){
 async function savePdf(){if(!tcGuard("calendar","edit"))return;if(!selectedDate)return alert('Vyber den.');let f=document.getElementById('pdfFile').files[0];if(!f)return alert('Vyber PDF.');await putFile(pdfKey(),f);await updatePdfState();render()}
 async function openPdf(){let f=await getFile(pdfKey());if(!f)return alert('PDF není vložené.');window.open(URL.createObjectURL(f),'_blank')}
 async function deletePdf(){if(!tcGuard("calendar","edit"))return;await delFile(pdfKey());updatePdfState();render()}
-async function updatePdfState(){let e=document.getElementById('pdfState');if(!e||!selectedDate)return;let f=await getFile(pdfKey());e.textContent=f?'PDF uložené: '+f.name:'PDF zatím není vložené.'}
+async function updatePdfState(){let e=document.getElementById('pdfState');if(!e||!selectedDate)return;if(!tcIsAdminLike()){e.textContent='';return;}let f=await getFile(pdfKey());e.textContent=f?'PDF uložené: '+f.name:'PDF zatím není vložené.'}
 async function saveVideo(i){if(!tcGuard("calendar","edit"))return;if(!selectedDate)return alert('Vyber den.');let inp=document.querySelector('.bv[data-i="'+i+'"]'),f=inp&&inp.files[0];if(!f)return alert('Vyber MP4.');await putFile('video_'+selectedDate+'_'+i,f);await updateVideoStates();render()}
 async function playVideo(i){if(!selectedDate)return;let f=await getFile('video_'+selectedDate+'_'+i);if(!f)return alert('MP4 není vložené.');playFile(f,'Video ke cvičení')}
 async function deleteVideo(i){if(!tcGuard("calendar","edit"))return;await delFile('video_'+selectedDate+'_'+i);updateVideoStates();render()}
-async function updateVideoStates(){if(!selectedDate)return;for(let e of document.querySelectorAll('[id^=vs_]')){let i=e.id.split('_')[1],f=await getFile('video_'+selectedDate+'_'+i);e.textContent=f?'✓ MP4 uložené: '+f.name:'MP4 nevloženo'}}
+async function updateVideoStates(){if(!selectedDate)return;if(!tcIsAdminLike())return;for(let e of document.querySelectorAll('[id^=vs_]')){let i=e.id.split('_')[1],f=await getFile('video_'+selectedDate+'_'+i);e.textContent=f?'✓ MP4 uložené: '+f.name:'MP4 nevloženo'}}
 
 async function renderHomeTraining(){
   let t=trs(),key=nearestTrainingKey();
