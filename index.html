@@ -882,11 +882,28 @@ function tcApplyPermissionsUI(){
 Návrat do Owner režimu na vlastním zařízení.
 Zachová aktivní tým, jen vyčistí přihlášení role.
 */
+
+/* --- TC 3.2.2 Owner Menu Restore Fix --- */
+function tcRestoreFullOwnerUI(){
+  document.querySelectorAll('nav button').forEach(b=>{
+    b.style.display="";
+    b.classList.remove("hidden");
+  });
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  let home=document.getElementById("home");
+  if(home)home.classList.add("active");
+  let navHome=document.getElementById("nav-home");
+  if(navHome)navHome.classList.add("active");
+  if(typeof tcApplyRoleBasedUI==="function")setTimeout(tcApplyRoleBasedUI,50);
+}
+
+
 function tcSwitchToOwner(){
   currentPlayerId=null;
   currentStaffId=null;
   localStorage.removeItem(LL);
   localStorage.removeItem(LRT);
+  localStorage.setItem(TC_GUEST_DONE_KEY,"1");
 
   let access=document.getElementById("accessCode");
   if(access)access.value="";
@@ -904,7 +921,7 @@ function tcSwitchToOwner(){
 
   if(typeof tcSaveTeamIdentity==="function")tcSaveTeamIdentity();
   render();
-  tab("login");
+  tcRestoreFullOwnerUI();
 }
 
 
@@ -922,7 +939,7 @@ function tcShowGuest(){
 }
 
 function tcShowAppAfterLogin(){
-  document.querySelectorAll('nav button').forEach(b=>b.style.display="");
+  document.querySelectorAll('nav button').forEach(b=>{b.style.display="";b.classList.remove("hidden")});
   tab("home");
 }
 
