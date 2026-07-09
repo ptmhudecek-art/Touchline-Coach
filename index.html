@@ -236,6 +236,27 @@ button[onclick*="deleteVideo"],
 #nav-trezor,[data-tab="trezor"]{display:none!important;}
 </style>
 
+
+<style>
+/* TC 3.6.0 Match Event */
+.tcEventSwitch{display:flex;gap:8px;margin:10px 0;flex-wrap:wrap}
+.tcEventSwitch button.active{filter:brightness(1.25)}
+.tcMatchGrid{display:grid;gap:8px}
+.tcNomination{width:100%;min-height:110px;resize:none;overflow:hidden;line-height:1.35;margin-top:8px}
+.tcMatchInfo{display:grid;gap:6px;margin-top:8px}
+</style>
+
+
+<style>
+/* TC 3.6.1 Stable Merge */
+#nav-trezor,[data-tab="trezor"],button[onclick*="trezor"],button[onclick*="vault"]{display:none!important;}
+.tcEventSwitch{display:flex;gap:8px;margin:10px 0;flex-wrap:wrap}
+.tcEventSwitch button.active{filter:brightness(1.25)}
+.tcMatchGrid{display:grid;gap:8px}
+.tcNomination{width:100%;min-height:110px;resize:none;overflow:hidden;line-height:1.35;margin-top:8px}
+.tcMatchInfo{display:grid;gap:6px;margin-top:8px}
+</style>
+
 </head>
 <body class="home-premium">
 <header>
@@ -861,27 +882,34 @@ function tcTrainingReadOnlyHtml(date){
 function selectDay(date){
   selectedDate=date;
   let title=document.getElementById('selTitle');
-  if(title)title.textContent='Trénink '+date.split('-').reverse().join('.');
+  if(title)title.textContent='Akce '+date.split('-').reverse().join('.');
   let editor=document.getElementById('editor');
   if(editor)editor.classList.remove('hidden');
 
-  tcCaptureCalendarEditor();
+  let t=trs()[date]||{type:'training',time:'',place:'',blocks:[]};
 
   if(!tcIsAdminLike()){
-    if(editor)editor.innerHTML=tcTrainingReadOnlyHtml(date);
+    if(editor){
+      if((t.type||"training")==="match")editor.innerHTML=tcMatchReadOnlyHtml(date,t);
+      else editor.innerHTML=tcTrainingReadOnlyHtml(date);
+    }
     return;
   }
 
-  tcRestoreCalendarEditor();
+  if(typeof tcRestoreCalendarEditor==="function")tcRestoreCalendarEditor();
+  tcEnsureMatchEditor();
 
-  let t=trs()[date]||{time:'',place:'',blocks:[]};
-  let trTime=document.getElementById('trTime');
-  let trPlace=document.getElementById('trPlace');
-  if(trTime)trTime.value=t.time||'';
-  if(trPlace)trPlace.value=t.place||'';
+  let type=t.type||'training';
+  let eventType=document.getElementById('eventType');if(eventType)eventType.value=type;
+  let trTime=document.getElementById('trTime');let trPlace=document.getElementById('trPlace');
+  if(trTime)trTime.value=t.time||'';if(trPlace)trPlace.value=t.place||'';
+
+  let mo=document.getElementById('matchOpponent'),mp=document.getElementById('matchPlace'),mm=document.getElementById('matchMeeting'),mn=document.getElementById('matchNomination');
+  if(mo)mo.value=t.opponent||'';if(mp)mp.value=t.place||'';if(mm)mm.value=t.meetingTime||'';if(mn)mn.value=t.nomination||'';
 
   renderBlocks(t.blocks||[]);
-  setTimeout(()=>{if(typeof tcRemoveMediaControlsHard==="function")tcRemoveMediaControlsHard(); if(typeof tcHideMediaControls==="function")tcHideMediaControls();},80);
+  tcRenderEventFields(type);
+  setTimeout(()=>{tcGrowNomination();tcHideTrezorNav();},80);
 }
 function renderBlocks(blocks){
   let box=document.getElementById('blocks');
@@ -925,17 +953,16 @@ function removeBlock(i){
 function saveTraining(){
   if(!tcGuard("calendar","edit"))return;
   if(!selectedDate)return;
+  let type=tcEventType();
   let t=trs();
-  t[selectedDate]={
-    time:document.getElementById('trTime')?document.getElementById('trTime').value:'',
-    place:document.getElementById('trPlace')?document.getElementById('trPlace').value:'',
-    blocks:getBlocks()
-  };
-  setTrs(t);
-  render();
-  selectDay(selectedDate);
+  if(type==="match"){
+    t[selectedDate]={type:"match",time:document.getElementById('trTime')?document.getElementById('trTime').value:'',place:document.getElementById('matchPlace')?document.getElementById('matchPlace').value:'',opponent:document.getElementById('matchOpponent')?document.getElementById('matchOpponent').value:'',meetingTime:document.getElementById('matchMeeting')?document.getElementById('matchMeeting').value:'',nomination:document.getElementById('matchNomination')?document.getElementById('matchNomination').value:'',blocks:[]};
+  }else{
+    t[selectedDate]={type:"training",time:document.getElementById('trTime')?document.getElementById('trTime').value:'',place:document.getElementById('trPlace')?document.getElementById('trPlace').value:'',blocks:getBlocks()};
+  }
+  setTrs(t);render();selectDay(selectedDate);
   let msg=document.getElementById('calendarMsg')||document.getElementById('cloudStatus');
-  if(msg)msg.textContent='Trénink uložen.';
+  if(msg)msg.textContent=type==="match"?'Utkání uloženo.':'Trénink uložen.';
 }
 function deleteTraining(){if(!tcGuard("calendar","edit"))return;if(!selectedDate)return;let t=trs();delete t[selectedDate];setTrs(t);setAttObj({});document.getElementById('editor').classList.add('hidden');selectedDate=null;render()}
 
@@ -1164,28 +1191,9 @@ function tcRestoreFullOwnerUI(){
 
 function tcSwitchToOwner(){
   if(typeof tcForceOwnerMode==="function")tcForceOwnerMode();
-  else{
-    currentPlayerId=null;
-    currentStaffId=null;
-    localStorage.removeItem(LL);
-    localStorage.removeItem(LRT);
-    localStorage.setItem(TC_GUEST_DONE_KEY,"1");
-  }
-
-  let access=document.getElementById("accessCode");
-  if(access)access.value="";
-  let loginName=document.getElementById("loginName");
-  if(loginName)loginName.value="";
-  let loginSecret=document.getElementById("loginSecret");
-  if(loginSecret)loginSecret.value="";
-  let staffName=document.getElementById("staffLoginName");
-  if(staffName)staffName.value="";
-  let staffCode=document.getElementById("staffLoginCode");
-  if(staffCode)staffCode.value="";
-
-  let msg=document.getElementById("accessMsg");
-  if(msg)msg.textContent="Přepnuto na OWNER.";
-
+  else{currentPlayerId=null;currentStaffId=null;localStorage.removeItem(LL);localStorage.removeItem(LRT);localStorage.setItem(TC_GUEST_DONE_KEY,"1");}
+  let access=document.getElementById("accessCode");if(access)access.value="";
+  let msg=document.getElementById("accessMsg");if(msg)msg.textContent="Přepnuto na OWNER.";
   if(typeof tcSaveTeamIdentity==="function")tcSaveTeamIdentity();
   render();
   if(typeof tcRestoreCalendarEditor==="function")tcRestoreCalendarEditor();
@@ -1206,9 +1214,7 @@ function tcShowGuest(){
   document.querySelectorAll('nav button').forEach(b=>{b.classList.remove('active');b.style.display="none"});
 }
 
-function tcShowAppAfterLogin(){
-  tcGoOverview();
-}
+function tcShowAppAfterLogin(){tcGoOverview()}
 
 
 /* --- TC 3.2.1 Guest Cloud Login Fix ---
@@ -1313,18 +1319,89 @@ function tcGoOverview(){
 }
 
 
+
+/* --- TC 3.6.1 Stable Merge --- */
+function tcHideTrezorNav(){
+  document.querySelectorAll('nav button').forEach(b=>{
+    const txt=(b.textContent||'').trim().toLowerCase();
+    if(txt==="home")b.textContent="Přehled";
+    if(txt.includes("trezor")){b.style.display="none";b.classList.add("hidden");}
+  });
+}
+function tcGoOverview(){
+  document.querySelectorAll('nav button').forEach(b=>{b.style.display="";b.classList.remove("hidden");b.classList.remove("active");});
+  tcHideTrezorNav();
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  let home=document.getElementById("home");if(home)home.classList.add("active");
+  let navHome=document.getElementById("nav-home");if(navHome)navHome.classList.add("active");
+  if(typeof tcApplyRoleBasedUI==="function")setTimeout(tcApplyRoleBasedUI,50);
+  setTimeout(tcHideTrezorNav,80);
+}
+function tcEventType(){let e=document.getElementById("eventType");return e?e.value:"training"}
+function tcSetEventType(type){let e=document.getElementById("eventType");if(e)e.value=type;tcRenderEventFields(type)}
+function tcGrowNomination(){let e=document.getElementById("matchNomination");if(e&&typeof tcAutoGrow==="function")tcAutoGrow(e)}
+function tcRenderEventFields(type){
+  let trainingBox=document.getElementById("trainingFields");
+  let matchBox=document.getElementById("matchFields");
+  if(trainingBox)trainingBox.classList.toggle("hidden",type==="match");
+  if(matchBox)matchBox.classList.toggle("hidden",type!=="match");
+  document.querySelectorAll(".tcTypeBtn").forEach(b=>b.classList.toggle("active",b.dataset.type===type));
+  setTimeout(tcGrowNomination,30);
+}
+function tcMatchReadOnlyHtml(date,t){
+  let out=`<div class="card" style="background:#11141a"><h3>Utkání</h3><div class="tcMatchInfo">
+    <div><b>Soupeř:</b> ${esc(t.opponent||"není zadán")}</div>
+    <div><b>Čas utkání:</b> ${esc(t.time||"čas nezadán")}</div>
+    <div><b>Místo:</b> ${esc(t.place||"místo nezadáno")}</div>
+    <div><b>Sraz:</b> ${esc(t.meetingTime||"není zadán")}</div>
+  </div></div>`;
+  out+=`<div class="card"><h3>Nominace</h3>`;
+  out+=t.nomination?`<div class="tcReadDesc">${esc(t.nomination)}</div>`:`<p class="small">Nominace zatím není vyplněná.</p>`;
+  out+=`</div>`;
+  return out;
+}
+function tcEnsureMatchEditor(){
+  let editor=document.getElementById("editor");
+  if(!editor || document.getElementById("eventType"))return;
+  let trPlace=document.getElementById("trPlace");
+  if(!trPlace)return;
+  let wrap=document.createElement("div");
+  wrap.innerHTML=`
+    <input type="hidden" id="eventType" value="training">
+    <div class="tcEventSwitch">
+      <button class="btn2 tcTypeBtn" data-type="training" onclick="tcSetEventType('training')">Trénink</button>
+      <button class="btn2 tcTypeBtn" data-type="match" onclick="tcSetEventType('match')">Utkání</button>
+    </div>
+    <div id="matchFields" class="card hidden">
+      <h3>Utkání</h3>
+      <div class="tcMatchGrid">
+        <input id="matchOpponent" placeholder="Soupeř">
+        <input id="matchPlace" placeholder="Kde se hraje">
+        <input id="matchMeeting" placeholder="Čas srazu">
+        <textarea id="matchNomination" class="tcNomination" placeholder="Nominace..." oninput="tcAutoGrow(this)"></textarea>
+      </div>
+    </div>
+    <div id="trainingFields"></div>
+  `;
+  let card=trPlace.closest(".card")||trPlace.parentElement;
+  card.appendChild(wrap);
+  let blocks=document.getElementById("blocks");
+  let trainingFields=document.getElementById("trainingFields");
+  if(blocks&&trainingFields){
+    trainingFields.appendChild(blocks);
+    [...document.querySelectorAll("button")].filter(b=>(b.textContent||"").includes("Přidat blok")).forEach(b=>trainingFields.appendChild(b));
+  }
+}
+
+
 function tcPublicStart(){
-  if(tcOwnerDeviceShouldStartAsOwner()){
-    tcForceOwnerMode();
+  if(typeof tcOwnerDeviceShouldStartAsOwner==="function" && tcOwnerDeviceShouldStartAsOwner()){
+    if(typeof tcForceOwnerMode==="function")tcForceOwnerMode();
     tcGoOverview();
     return;
   }
   let logged=!!localStorage.getItem(LL)||!!localStorage.getItem(LRT)||localStorage.getItem(TC_GUEST_DONE_KEY)==="1";
-  if(!logged){
-    tcShowGuest();
-  }else{
-    tcGoOverview();
-  }
+  if(!logged)tcShowGuest();else tcGoOverview();
 }
 
 
@@ -1976,6 +2053,7 @@ setTimeout(()=>{
   });
 },100);
 
+setTimeout(tcHideTrezorNav,300);
 </script>
 
 <script>
