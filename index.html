@@ -229,6 +229,12 @@ button[onclick*="deleteVideo"],
 }
 </style>
 
+
+<style>
+/* TC 3.5.3 Přehled + Hide Trezor */
+#nav-trezor,[data-tab="trezor"]{display:none!important;}
+</style>
+
 </head>
 <body class="home-premium">
 <header>
@@ -476,7 +482,7 @@ button[onclick*="deleteVideo"],
 </main>
 
 <nav>
-<button id="nav-home" class="active" onclick="tab('home')">Home</button>
+<button id="nav-home" class="active" onclick="tab('home')">Přehled</button>
 <button id="nav-calendar" onclick="tab('calendar')">Kalendář</button>
 <button id="nav-team" onclick="tab('team')">Tým</button>
 <button id="nav-attendance" onclick="tab('attendance')">Docházka</button>
@@ -971,7 +977,7 @@ async function playVideo(i){if(!selectedDate)return;let f=await getFile('video_'
 async function deleteVideo(i){if(!tcGuard("calendar","edit"))return;await delFile('video_'+selectedDate+'_'+i);updateVideoStates();render()}
 async function updateVideoStates(){if(!selectedDate)return;if(!tcIsAdminLike())return;for(let e of document.querySelectorAll('[id^=vs_]')){let i=e.id.split('_')[1],f=await getFile('video_'+selectedDate+'_'+i);e.textContent=f?'✓ MP4 uložené: '+f.name:'MP4 nevloženo'}}
 
-async function renderHomeTraining(){
+async function renderPřehledTraining(){
   let t=trs(),key=nearestTrainingKey();
   let info=document.getElementById('homeInfo'),box=document.getElementById('homeBlocks');
   if(!key||!t[key]){
@@ -985,18 +991,18 @@ async function renderHomeTraining(){
   let pdf=await getFile('pdf_'+key);
   let photo=await getFile('photo_'+key);
   let topIcons='';
-  if(pdf)topIcons+=`<button class=iconBtn onclick="openHomePdf('${key}')">📄</button>`;
-  if(photo)topIcons+=`<button class=iconBtn onclick="openHomePhoto('${key}')">🖼️</button>`;
+  if(pdf)topIcons+=`<button class=iconBtn onclick="openPřehledPdf('${key}')">📄</button>`;
+  if(photo)topIcons+=`<button class=iconBtn onclick="openPřehledPhoto('${key}')">🖼️</button>`;
   if(topIcons)out+=`<div class=mediaIcons>${topIcons}</div>`;
   for(let i=0;i<(tr.blocks||[]).length;i++){
     let b=tr.blocks[i],v=await getFile('video_'+key+'_'+i);
-    out+=`<div class=block><div class=space><b>${esc(b.name)}</b><span class="pill blue">${esc(b.min)}´</span></div>${v?`<div class=mediaIcons><button class=iconBtn onclick="openHomeVideo('${key}',${i})">🎥</button></div>`:''}</div>`;
+    out+=`<div class=block><div class=space><b>${esc(b.name)}</b><span class="pill blue">${esc(b.min)}´</span></div>${v?`<div class=mediaIcons><button class=iconBtn onclick="openPřehledVideo('${key}',${i})">🎥</button></div>`:''}</div>`;
   }
   if(box)box.innerHTML=out;
 }
-async function openHomePdf(k){let f=await getFile('pdf_'+k);if(!f)return alert('PDF není vložené.');window.open(URL.createObjectURL(f),'_blank')}
-async function openHomePhoto(k){let f=await getFile('photo_'+k);if(!f)return alert('Foto není vložené.');openImageFile(f,'Foto nákresu')}
-async function openHomeVideo(k,i){let f=await getFile('video_'+k+'_'+i);if(!f)return alert('MP4 není vložené.');playFile(f,'Video ke cvičení')}
+async function openPřehledPdf(k){let f=await getFile('pdf_'+k);if(!f)return alert('PDF není vložené.');window.open(URL.createObjectURL(f),'_blank')}
+async function openPřehledPhoto(k){let f=await getFile('photo_'+k);if(!f)return alert('Foto není vložené.');openImageFile(f,'Foto nákresu')}
+async function openPřehledVideo(k,i){let f=await getFile('video_'+k+'_'+i);if(!f)return alert('MP4 není vložené.');playFile(f,'Video ke cvičení')}
 function playFile(f,title){tab('home');document.getElementById('homeDetail').classList.remove('hidden');let box=document.getElementById('playerBox'),v=document.getElementById('videoPlayer'),ttl=document.getElementById('mediaTitle');if(v.dataset.url)URL.revokeObjectURL(v.dataset.url);let url=URL.createObjectURL(f);v.dataset.url=url;v.src=url;ttl.textContent=title;box.classList.remove('hidden');v.load();v.play().catch(()=>{});box.scrollIntoView({behavior:'smooth'})}
 function closeVideo(){let box=document.getElementById('playerBox'),v=document.getElementById('videoPlayer');v.pause();if(v.dataset.url)URL.revokeObjectURL(v.dataset.url);v.removeAttribute('src');box.classList.add('hidden')}
 
@@ -1147,8 +1153,8 @@ function tcRestoreFullOwnerUI(){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   let home=document.getElementById("home");
   if(home)home.classList.add("active");
-  let navHome=document.getElementById("nav-home");
-  if(navHome)navHome.classList.add("active");
+  let navPřehled=document.getElementById("nav-home");
+  if(navPřehled)navPřehled.classList.add("active");
   if(typeof tcApplyRoleBasedUI==="function")setTimeout(tcApplyRoleBasedUI,50);
 
   tcRestoreCalendarEditor();
@@ -1339,7 +1345,7 @@ function playerLogin(){let name=norm(document.getElementById('loginName').value)
 function msg(t){document.getElementById('loginMsg').textContent=t}
 function playerLogout(){currentPlayerId=null;localStorage.removeItem(LL);document.getElementById('playerPanel').classList.add('hidden');document.getElementById('pinSetup').classList.add('hidden');msg('Odhlášeno.')}
 function savePin(){let a=document.getElementById('pin1').value.trim(),b=document.getElementById('pin2').value.trim();if(!/^\d{4}$/.test(a))return msg('PIN musí mít 4 čísla.');if(a!==b)return msg('PINy nesedí.');let p=players(),x=p.find(y=>y.id===currentPlayerId);if(x){x.pin=a;setPlayers(p);msg('PIN uložen.');render()}}
-function renderPlayerPanel(){let p=players().find(x=>x.id===currentPlayerId),pan=document.getElementById('playerPanel'),pin=document.getElementById('pinSetup');if(!p){pan.classList.add('hidden');pin.classList.add('hidden');return}pin.classList.toggle('hidden',!!p.pin);let v=att()[p.id]||'none';pan.classList.remove('hidden');pan.innerHTML=`<div class=playerHome>${esc(p.name)}</div><p>Stav: <span class="pill ${cls(v)}">${label(v)}</span></p><div class=row><button class=btn2 onclick="setAttendance('${p.id}','yes')">✅ Přijdu</button><button class=btn2 onclick="setAttendance('${p.id}','injury')">✚ Zranění</button><button class=btn2 onclick="setAttendance('${p.id}','work')">💼 Práce/škola</button><button class=btn2 onclick="setAttendance('${p.id}','other')">● Ostatní</button></div>`}
+function renderPlayerPanel(){let p=players().find(x=>x.id===currentPlayerId),pan=document.getElementById('playerPanel'),pin=document.getElementById('pinSetup');if(!p){pan.classList.add('hidden');pin.classList.add('hidden');return}pin.classList.toggle('hidden',!!p.pin);let v=att()[p.id]||'none';pan.classList.remove('hidden');pan.innerHTML=`<div class=playerPřehled>${esc(p.name)}</div><p>Stav: <span class="pill ${cls(v)}">${label(v)}</span></p><div class=row><button class=btn2 onclick="setAttendance('${p.id}','yes')">✅ Přijdu</button><button class=btn2 onclick="setAttendance('${p.id}','injury')">✚ Zranění</button><button class=btn2 onclick="setAttendance('${p.id}','work')">💼 Práce/škola</button><button class=btn2 onclick="setAttendance('${p.id}','other')">● Ostatní</button></div>`}
 
 
 
@@ -1580,7 +1586,7 @@ function renderMiniCal(){
   for(let i=0;i<start;i++)grid.innerHTML+='<div class="md mutedDay">'+(prevDays-start+i+1)+'</div>';
   for(let d=1;d<=days;d++){let date=iso(new Date(y,m,d)),has=!!t[date],isToday=date===today;grid.innerHTML+='<div class="md">'+(isToday?'<span class="todayMini">'+d+'</span>':d)+(has?'<span class="miniDot"></span>':'')+'</div>';}
 }
-function renderPremiumHome(){
+function renderPremiumPřehled(){
   let t=trs(),key=nearestTrainingKey();
   let tr=key?t[key]:null;
   let time=document.getElementById('premiumTime'),place=document.getElementById('premiumPlace'),badge=document.getElementById('heroBadge');
@@ -1916,7 +1922,7 @@ function render(){
   renderAttendance();
   renderSummary();
   renderCal();
-  renderPremiumHome();
+  renderPremiumPřehled();
   renderVault();
   renderStaff();
   renderPlayerPanel();
@@ -1930,6 +1936,20 @@ function render(){
 }
 restore();render();tcPublicStart();
 setTimeout(tcRemoveMediaControlsHard,500);
+
+/* TC 3.5.3 Přehled + Hide Trezor */
+setTimeout(()=>{
+  document.querySelectorAll('nav button').forEach(b=>{
+    const t=(b.textContent||'').trim().toLowerCase();
+    if(t.includes('trezor')){
+      b.style.display='none';
+    }
+    if(t==='home'){
+      b.textContent='Přehled';
+    }
+  });
+},100);
+
 </script>
 
 <script>
