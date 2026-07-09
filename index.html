@@ -290,23 +290,10 @@ button[onclick*="deleteVideo"],
 
 
 <style>
-/* TC 4.0 CLEAN CALENDAR CORE */
-#nav-trezor,[data-tab="trezor"],button[onclick*="trezor"],button[onclick*="vault"]{display:none!important;}
-.tc40Editor .card{margin-top:10px}
-.tc40TypeSwitch{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px}
-.tc40TypeSwitch button.active{filter:brightness(1.25);outline:1px solid rgba(255,255,255,.28)}
-.tc40FormGrid{display:grid;gap:8px}
-.tc40Actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-.tc40Save{background:#16a34a!important;color:#fff!important}
-.tc40Delete{background:#dc2626!important;color:#fff!important}
-.tc40Block{border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:12px;margin:10px 0;background:rgba(255,255,255,.03)}
-.tc40BlockTop{display:grid;grid-template-columns:1fr 84px 42px;gap:8px;align-items:center}
-.tc40Desc,.tc40Nomination{width:100%;min-height:44px;resize:none;overflow:hidden;line-height:1.35;margin-top:8px}
-.tc40Nomination{min-height:120px}
-.tc40ReadDesc{white-space:pre-wrap;margin-top:8px;color:rgba(255,255,255,.82);line-height:1.35}
-.day.tc40-match,.cal .day.tc40-match{border:1px solid rgba(239,68,68,.65)!important;box-shadow:0 0 0 1px rgba(239,68,68,.14) inset!important}
-.dot.tc40-match{background:#3b82f6!important}
-.dot.tc40-training{background:#22c55e!important}
+/* TC 4.0.2 Sync Refresh + Calendar Colors */
+.tcSyncFixTrainingDot{background:#22c55e!important}
+.tcSyncFixMatchDot{background:#3b82f6!important}
+.tcSyncFixMatchDay{border:1px solid rgba(239,68,68,.62)!important;box-shadow:0 0 0 1px rgba(239,68,68,.12) inset!important}
 </style>
 
 </head>
@@ -2331,286 +2318,128 @@ console.log("TC Cloud ready:", firebaseConfig.projectId);
 
 
 <script>
-/* --- TC 4.0 CLEAN CALENDAR CORE ---
-One calendar editor. No patch salad.
-Keeps data structure compatible: trs()[date] stores {type, time, place, blocks} or match fields.
-*/
+/* --- TC 4.0.2 Sync Refresh + Calendar Colors --- */
 (function(){
-  const TC40 = "TC 4.0 Clean Calendar Core";
-
-  function q(id){return document.getElementById(id)}
-  function safeEsc(v){
-    if(typeof esc==="function") return esc(v);
-    return String(v??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+  function tryCloudSave(){
+    try{
+      if(typeof tcSaveTeamToCloud==="function"){setTimeout(()=>tcSaveTeamToCloud(),120);return;}
+      if(typeof saveTeamToCloud==="function"){setTimeout(()=>saveTeamToCloud(),120);return;}
+      if(typeof tcCloudPushNow==="function"){setTimeout(()=>tcCloudPushNow("calendar"),120);return;}
+      if(typeof tcScheduleCloudSave==="function"){tcScheduleCloudSave("calendar");return;}
+      if(typeof tcCloudSaveCurrentTeam==="function"){setTimeout(()=>tcCloudSaveCurrentTeam(),120);return;}
+    }catch(e){console.warn("TC cloud autosave failed",e)}
   }
-  function canEditCalendar(){
-    return !(typeof tcIsAdminLike==="function") || tcIsAdminLike();
-  }
-  window.tcAutoGrow = window.tcAutoGrow || function(el){
-    if(!el)return;
-    el.style.height="auto";
-    el.style.height=(el.scrollHeight+2)+"px";
-  };
+  window.tcCalendarCloudAutosave = tryCloudSave;
 
-  window.tcHideTrezorNav = function(){
-    document.querySelectorAll('nav button').forEach(b=>{
-      const txt=(b.textContent||'').trim().toLowerCase();
-      if(txt==="home") b.textContent="Přehled";
-      if(txt.includes("trezor")){
-        b.style.display="none";
-        b.classList.add("hidden");
-      }
-    });
-  };
-
-  window.tcGoOverview = function(){
-    document.querySelectorAll('nav button').forEach(b=>{
-      b.style.display="";
-      b.classList.remove("hidden");
-      b.classList.remove("active");
-    });
-    tcHideTrezorNav();
-    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-    let home=q("home"); if(home) home.classList.add("active");
-    let navHome=q("nav-home"); if(navHome) navHome.classList.add("active");
-    if(typeof tcApplyRoleBasedUI==="function") setTimeout(tcApplyRoleBasedUI,50);
-    setTimeout(tcHideTrezorNav,80);
-  };
-
-  function typeNow(){
-    let e=q("tc40Type");
-    return e?e.value:"training";
-  }
-  function setType(type){
-    let hidden=q("tc40Type");
-    if(hidden) hidden.value=type;
-    let tr=q("tc40Training");
-    let mt=q("tc40Match");
-    if(tr) tr.classList.toggle("hidden", type==="match");
-    if(mt) mt.classList.toggle("hidden", type!=="match");
-    document.querySelectorAll(".tc40TypeBtn").forEach(b=>b.classList.toggle("active", b.dataset.type===type));
-    setTimeout(()=>document.querySelectorAll(".tc40Desc,.tc40Nomination").forEach(tcAutoGrow),30);
-  }
-  window.tc40SetType=setType;
-
-  window.getBlocks = function(){
-    return Array.from(document.querySelectorAll("#tc40Blocks .tc40Block")).map(b=>({
-      name:b.querySelector(".bn") ? b.querySelector(".bn").value : "",
-      min:b.querySelector(".bm") ? b.querySelector(".bm").value : "",
-      desc:b.querySelector(".tc40Desc") ? b.querySelector(".tc40Desc").value : ""
-    }));
-  };
-
-  window.renderBlocks = function(blocks){
-    let box=q("tc40Blocks") || q("blocks");
-    if(!box) return;
-    box.innerHTML="";
-    (blocks||[]).forEach((b,i)=>{
-      box.innerHTML += `
-        <div class="tc40Block" data-i="${i}">
-          <div class="tc40BlockTop">
-            <input class="bn" value="${safeEsc(b.name||"")}" placeholder="Název cvičení">
-            <input class="bm" value="${safeEsc(b.min||"")}" placeholder="čas">
-            <button class="danger" onclick="removeBlock(${i})">×</button>
-          </div>
-          <textarea class="tc40Desc" placeholder="Popis cvičení..." oninput="tcAutoGrow(this)">${safeEsc(b.desc||"")}</textarea>
-        </div>`;
-    });
-    setTimeout(()=>document.querySelectorAll(".tc40Desc").forEach(tcAutoGrow),30);
-  };
-
-  window.addBlock = function(){
-    if(typeof tcGuard==="function" && !tcGuard("calendar","edit")) return;
-    let b=getBlocks();
-    b.push({name:"",min:"",desc:""});
-    renderBlocks(b);
-  };
-
-  window.removeBlock = function(i){
-    if(typeof tcGuard==="function" && !tcGuard("calendar","edit")) return;
-    let b=getBlocks();
-    b.splice(i,1);
-    renderBlocks(b);
-  };
-
-  function trainingReadOnly(t){
-    let out=`<div class="card" style="background:#11141a">
-      <div class="infoLine"><span class="ico">◷</span><span>${safeEsc(t.time||"čas nezadán")}</span></div>
-      <div class="infoLine"><span class="ico">⌖</span><span>${safeEsc(t.place||"místo nezadáno")}</span></div>
-    </div>`;
-    out+=`<div class="card"><h3>Bloky tréninku</h3>`;
-    let blocks=t.blocks||[];
-    if(!blocks.length) out+=`<p class="small">Trénink zatím nemá vyplněné bloky.</p>`;
-    blocks.forEach(b=>{
-      out+=`<div class="block"><div class="space"><b>⚽ ${safeEsc(b.name||"Část tréninku")}</b><span class="pill blue">${safeEsc(b.min||"")}´</span></div>`;
-      if(b.desc) out+=`<div class="tc40ReadDesc">${safeEsc(b.desc)}</div>`;
-      out+=`</div>`;
-    });
-    out+=`</div>`;
-    return out;
+  function eventMap(){
+    try{return trs()||{};}catch(e){return {}}
   }
 
-  function matchReadOnly(t){
-    let out=`<div class="card" style="background:#11141a"><h3>Utkání</h3>
-      <div class="tc40FormGrid">
-        <div><b>Soupeř:</b> ${safeEsc(t.opponent||"není zadán")}</div>
-        <div><b>Kde se hraje:</b> ${safeEsc(t.place||"není zadáno")}</div>
-        <div><b>Čas utkání:</b> ${safeEsc(t.time||"není zadán")}</div>
-        <div><b>Čas srazu:</b> ${safeEsc(t.meetingTime||"není zadán")}</div>
-      </div>
-    </div>`;
-    out+=`<div class="card"><h3>Nominace</h3>`;
-    out+=t.nomination ? `<div class="tc40ReadDesc">${safeEsc(t.nomination)}</div>` : `<p class="small">Nominace zatím není vyplněná.</p>`;
-    out+=`</div>`;
-    return out;
+  function dateCandidates(){
+    const map = eventMap();
+    return Object.keys(map);
   }
 
-  window.selectDay = function(date){
-    selectedDate=date;
-    let title=q("selTitle");
-    if(title) title.textContent="Akce "+date.split("-").reverse().join(".");
-    let editor=q("editor");
-    if(!editor) return;
-    editor.classList.remove("hidden");
+  function enhanceCalendarColors(){
+    const map = eventMap();
 
-    let data=trs();
-    let ev=data[date] || {type:"training", time:"", place:"", blocks:[]};
+    // Clear previous markers
+    document.querySelectorAll(".tcSyncFixMatchDay").forEach(e=>e.classList.remove("tcSyncFixMatchDay"));
+    document.querySelectorAll(".tcSyncFixTrainingDot,.tcSyncFixMatchDot").forEach(e=>e.classList.remove("tcSyncFixTrainingDot","tcSyncFixMatchDot"));
 
-    if(!canEditCalendar()){
-      editor.innerHTML = (ev.type||"training")==="match" ? matchReadOnly(ev) : trainingReadOnly(ev);
-      return;
-    }
-
-    const type = ev.type || "training";
-    editor.innerHTML = `
-      <div class="tc40Editor">
-        <input type="hidden" id="tc40Type" value="${safeEsc(type)}">
-        <div class="tc40TypeSwitch">
-          <button class="btn2 tc40TypeBtn" data-type="training" onclick="tc40SetType('training')">Trénink</button>
-          <button class="btn2 tc40TypeBtn" data-type="match" onclick="tc40SetType('match')">Utkání</button>
-        </div>
-
-        <div id="tc40Training" class="card">
-          <h3>Trénink</h3>
-          <div class="tc40FormGrid">
-            <input id="tc40TrainTime" value="${safeEsc(type==='match'?'':(ev.time||''))}" placeholder="Čas tréninku">
-            <input id="tc40TrainPlace" value="${safeEsc(type==='match'?'':(ev.place||''))}" placeholder="Místo">
-          </div>
-          <h3 style="margin-top:14px">Bloky</h3>
-          <p class="small">Enter v popisu přidá další řádek.</p>
-          <div id="tc40Blocks"></div>
-          <button class="btn2" onclick="addBlock()">+ Přidat blok</button>
-        </div>
-
-        <div id="tc40Match" class="card hidden">
-          <h3>Utkání</h3>
-          <div class="tc40FormGrid">
-            <input id="tc40Opponent" value="${safeEsc(type==='match'?(ev.opponent||''):'')}" placeholder="Soupeř">
-            <input id="tc40MatchPlace" value="${safeEsc(type==='match'?(ev.place||''):'')}" placeholder="Kde se hraje">
-            <input id="tc40MatchTime" value="${safeEsc(type==='match'?(ev.time||''):'')}" placeholder="Čas utkání">
-            <input id="tc40Meeting" value="${safeEsc(type==='match'?(ev.meetingTime||''):'')}" placeholder="Čas srazu">
-            <textarea id="tc40Nomination" class="tc40Nomination" placeholder="Nominace..." oninput="tcAutoGrow(this)">${safeEsc(type==='match'?(ev.nomination||''):'')}</textarea>
-          </div>
-        </div>
-
-        <div class="tc40Actions">
-          <button class="btn tc40Save" onclick="saveTraining()">Uložit</button>
-          <button class="danger tc40Delete" onclick="deleteTraining()">Smazat</button>
-        </div>
-      </div>`;
-    renderBlocks(type==="match"?[]:(ev.blocks||[]));
-    setType(type);
-  };
-
-  window.saveTraining = function(){
-    if(typeof tcGuard==="function" && !tcGuard("calendar","edit")) return;
-    if(!selectedDate) return;
-    let data=trs();
-    let type=typeNow();
-
-    if(type==="match"){
-      data[selectedDate]={
-        type:"match",
-        opponent:q("tc40Opponent") ? q("tc40Opponent").value : "",
-        place:q("tc40MatchPlace") ? q("tc40MatchPlace").value : "",
-        time:q("tc40MatchTime") ? q("tc40MatchTime").value : "",
-        meetingTime:q("tc40Meeting") ? q("tc40Meeting").value : "",
-        nomination:q("tc40Nomination") ? q("tc40Nomination").value : "",
-        blocks:[]
-      };
-    } else {
-      data[selectedDate]={
-        type:"training",
-        time:q("tc40TrainTime") ? q("tc40TrainTime").value : "",
-        place:q("tc40TrainPlace") ? q("tc40TrainPlace").value : "",
-        blocks:getBlocks()
-      };
-    }
-    setTrs(data);
-    render();
-    selectDay(selectedDate);
-    let msg=q("calendarMsg")||q("cloudStatus");
-    if(msg) msg.textContent="Uloženo.";
-  };
-
-  window.deleteTraining = function(){
-    if(typeof tcGuard==="function" && !tcGuard("calendar","edit")) return;
-    if(!selectedDate) return;
-    if(!confirm("Opravdu smazat tuto akci?")) return;
-    let data=trs();
-    delete data[selectedDate];
-    setTrs(data);
-    let editor=q("editor");
-    if(editor) editor.classList.add("hidden");
-    selectedDate=null;
-    render();
-  };
-
-  function enhanceCalendar(){
-    let data=trs();
-    // Existing calendar does not always expose data-date, so add a light fallback based on selected month/year if globals exist.
+    // Prefer explicit data-date if calendar has it
     document.querySelectorAll("[data-date]").forEach(day=>{
-      let date=day.getAttribute("data-date");
-      let ev=data[date]; if(!ev) return;
-      day.classList.remove("tc40-match","tc40-training");
-      day.classList.add((ev.type||"training")==="match" ? "tc40-match" : "tc40-training");
-      let dot=day.querySelector(".dot");
-      if(dot){dot.classList.remove("tc40-match","tc40-training");dot.classList.add((ev.type||"training")==="match"?"tc40-match":"tc40-training");}
+      const d=day.getAttribute("data-date");
+      const ev=map[d];
+      if(!ev)return;
+      const isMatch=(ev.type||"training")==="match";
+      if(isMatch)day.classList.add("tcSyncFixMatchDay");
+      let dot=day.querySelector(".dot")||day.querySelector("[class*='dot']");
+      if(dot)dot.classList.add(isMatch?"tcSyncFixMatchDot":"tcSyncFixTrainingDot");
     });
-    tcHideTrezorNav();
-  }
 
-  const oldRender = window.render;
-  if(typeof oldRender==="function"){
-    window.render=function(){
-      oldRender();
-      setTimeout(enhanceCalendar,80);
+    // Fallback: mark day cells/buttons by visible day number and current selected month/year if globals exist
+    const dates=dateCandidates();
+    if(!dates.length)return;
+    dates.forEach(d=>{
+      const ev=map[d];
+      if(!ev)return;
+      const dayNum=String(Number(d.split("-")[2]));
+      document.querySelectorAll("#calendar button,.cal button,.calendar button,.day").forEach(el=>{
+        const txt=(el.textContent||"").trim();
+        if(txt===dayNum || txt.startsWith(dayNum+" ")){
+          const isMatch=(ev.type||"training")==="match";
+          if(isMatch)el.classList.add("tcSyncFixMatchDay");
+          let dot=el.querySelector(".dot")||el.querySelector("[class*='dot']");
+          if(dot)dot.classList.add(isMatch?"tcSyncFixMatchDot":"tcSyncFixTrainingDot");
+        }
+      });
+    });
+  }
+  window.tcEnhanceCalendarColors = enhanceCalendarColors;
+
+  // Wrap save/delete without rebuilding editor.
+  function wrap(name){
+    const old=window[name];
+    if(typeof old!=="function" || old._tc402)return;
+    const fn=function(){
+      const r=old.apply(this,arguments);
+      try{
+        setTimeout(()=>{tryCloudSave(); if(typeof render==="function")render(); enhanceCalendarColors();},150);
+      }catch(e){}
+      return r;
     };
+    fn._tc402=true;
+    window[name]=fn;
   }
-  const oldRenderCal = window.renderCal;
-  if(typeof oldRenderCal==="function"){
-    window.renderCal=function(){
-      oldRenderCal();
-      setTimeout(enhanceCalendar,80);
+  wrap("saveTraining");
+  wrap("deleteTraining");
+
+  // Wrap render/renderCal
+  const oldRender=window.render;
+  if(typeof oldRender==="function" && !oldRender._tc402){
+    const r=function(){
+      const out=oldRender.apply(this,arguments);
+      setTimeout(enhanceCalendarColors,80);
+      return out;
     };
+    r._tc402=true;
+    window.render=r;
+  }
+  const oldRenderCal=window.renderCal;
+  if(typeof oldRenderCal==="function" && !oldRenderCal._tc402){
+    const r=function(){
+      const out=oldRenderCal.apply(this,arguments);
+      setTimeout(enhanceCalendarColors,80);
+      return out;
+    };
+    r._tc402=true;
+    window.renderCal=r;
   }
 
-  const oldPublicStart = window.tcPublicStart;
-  window.tcPublicStart=function(){
-    if(typeof tcOwnerDeviceShouldStartAsOwner==="function" && tcOwnerDeviceShouldStartAsOwner()){
-      if(typeof tcForceOwnerMode==="function") tcForceOwnerMode();
-      tcGoOverview();
-      return;
-    }
-    let logged=!!localStorage.getItem(LL)||!!localStorage.getItem(LRT)||localStorage.getItem(TC_GUEST_DONE_KEY)==="1";
-    if(!logged && typeof tcShowGuest==="function") tcShowGuest();
-    else tcGoOverview();
-  };
+  // Cloud snapshot apply should redraw immediately.
+  const oldApply=window.tcApplyTeamSnapshot;
+  if(typeof oldApply==="function" && !oldApply._tc402){
+    const f=function(){
+      const out=oldApply.apply(this,arguments);
+      setTimeout(()=>{try{if(typeof render==="function")render();enhanceCalendarColors();}catch(e){}},120);
+      return out;
+    };
+    f._tc402=true;
+    window.tcApplyTeamSnapshot=f;
+  }
 
-  window.tcShowAppAfterLogin=function(){tcGoOverview();};
-
-  setTimeout(()=>{tcHideTrezorNav();enhanceCalendar();},250);
-  window.TC_BUILD="4.0-clean-calendar";
+  // Keep Trezor hidden and Přehled label stable, because apparently menus enjoy resurrection.
+  function polishNav(){
+    document.querySelectorAll("nav button").forEach(b=>{
+      const txt=(b.textContent||"").trim().toLowerCase();
+      if(txt==="home")b.textContent="Přehled";
+      if(txt.includes("trezor")){b.style.display="none";b.classList.add("hidden");}
+    });
+  }
+  setInterval(()=>{polishNav();enhanceCalendarColors();},1500);
+  setTimeout(()=>{polishNav();enhanceCalendarColors();},300);
+  window.TC_BUILD="4.0.2-sync-refresh-colors";
 })();
 </script>
 
