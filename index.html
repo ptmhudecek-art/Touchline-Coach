@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Touchline Coach</title>
+<!-- TC 4.0.1 Sync Engine -->
 <!-- TC 3.5.4 Start na Přehled -->
 <!-- TC 3.5.2 Owner Start + Calendar Mode Fix -->
 <!-- TC 3.5.0 Clean Training Editor -->
@@ -2306,6 +2307,249 @@ window.tcCloudWatchSnapshot = function(ownerId, teamId, callback){
 };
 
 console.log("TC Cloud ready:", firebaseConfig.projectId);
+</script>
+
+
+<script>
+/* --- TC 4.0.1 Sync Engine --- */
+(function(){
+  if(window.TC_SYNC_ENGINE_401)return;
+  window.TC_SYNC_ENGINE_401=true;
+
+  let tcSyncUnsubscribe=null;
+  let tcSyncStarting=false;
+  let tcLocalSaveTimer=null;
+
+  function log(msg){
+    try{
+      let e=document.getElementById("cloudStatus");
+      if(e)e.textContent=msg;
+    }catch(_){}
+    console.log("[TC Sync]",msg);
+  }
+
+  function ownerId(){
+    try{
+      if(typeof tcOwnerId==="function")return tcOwnerId();
+      return localStorage.getItem("tc_owner_id_v01")||localStorage.getItem("tcOwnerId")||"own_local";
+    }catch(_){return "own_local"}
+  }
+
+  function teamId(){
+    try{
+      if(typeof tcUiActiveTeamId==="function")return tcUiActiveTeamId();
+      return localStorage.getItem("tc_ui_active_team_v01")||localStorage.getItem("tcActiveTeamId")||"zbiroh_default";
+    }catch(_){return "zbiroh_default"}
+  }
+
+  function redraw(){
+    try{
+      if(typeof render==="function")render();
+      if(typeof renderCal==="function")renderCal();
+      if(window.selectedDate && typeof selectDay==="function"){
+        let editor=document.getElementById("editor");
+        if(editor && !editor.classList.contains("hidden"))selectDay(window.selectedDate);
+      }
+      if(typeof tcHideTrezorNav==="function")tcHideTrezorNav();
+    }catch(e){console.warn("[TC Sync] redraw failed",e)}
+  }
+
+  function makeSnapshot(){
+    if(typeof tcBuildTeamSnapshot==="function")return tcBuildTeamSnapshot();
+
+    let snap={ownerId:ownerId(),teamId:teamId(),updatedAt:Date.now()};
+    try{snap.players=typeof players==="function"?players():JSON.parse(localStorage.getItem("players")||"[]")}catch(_){}
+    try{snap.staff=typeof staff==="function"?staff():JSON.parse(localStorage.getItem("staff")||"[]")}catch(_){}
+    try{snap.trainings=typeof trs==="function"?trs():JSON.parse(localStorage.getItem("trainings")||"{}")}catch(_){}
+    try{snap.attendance=typeof ats==="function"?ats():JSON.parse(localStorage.getItem("attendance")||"{}")}catch(_){}
+    return snap;
+  }
+
+  function applySnapshot(snap){
+    if(!snap)return;
+    try{
+      if(typeof tcApplyTeamSnapshot==="function"){
+        tcApplyTeamSnapshot(snap);
+      }else{
+        if(snap.players)localStorage.setItem("players",JSON.stringify(snap.players));
+        if(snap.staff)localStorage.setItem("staff",JSON.stringify(snap.staff));
+        if(snap.trainings)localStorage.setItem("trainings",JSON.stringify(snap.trainings));
+        if(snap.attendance)localStorage.setItem("attendance",JSON.stringify(snap.attendance));
+      }
+      redraw();
+      log("Live Sync: aktualizováno z cloudu");
+    }catch(e){
+      console.error("[TC Sync] apply failed",e);
+      log("Live Sync chyba při načtení: "+(e.message||e));
+    }
+  }
+
+  async function saveNow(reason){
+    try{
+      let snap=makeSnapshot();
+      snap.updatedAt=Date.now();
+      snap.syncReason=reason||"auto";
+
+      if(typeof tcCloudSaveSnapshot==="function"){
+        await tcCloudSaveSnapshot(snap);
+        log("Auto Save: uloženo do cloudu");
+        return true;
+      }
+      if(typeof tcSaveTeamToCloud==="function"){
+        await tcSaveTeamToCloud();
+        log("Auto Save: uloženo do cloudu");
+        return true;
+      }
+      if(typeof saveTeamToCloud==="function"){
+        await saveTeamToCloud();
+        log("Auto Save: uloženo do cloudu");
+        return true;
+      }
+      if(window.tcCloud && typeof window.tcCloud.save==="function"){
+        await window.tcCloud.save(snap);
+        log("Auto Save: uloženo do cloudu");
+        return true;
+      }
+      log("Auto Save: cloud save funkce nenalezena");
+      return false;
+    }catch(e){
+      console.error("[TC Sync] save failed",e);
+      log("Auto Save chyba: "+(e.message||e));
+      return false;
+    }
+  }
+
+  function scheduleSave(reason){
+    clearTimeout(tcLocalSaveTimer);
+    tcLocalSaveTimer=setTimeout(()=>saveNow(reason||"scheduled"),350);
+  }
+
+  async function loadOnce(){
+    try{
+      if(typeof tcCloudLoadSnapshot==="function"){
+        let snap=await tcCloudLoadSnapshot(ownerId(),teamId());
+        applySnapshot(snap);
+        return true;
+      }
+      if(typeof tcLoadTeamFromCloud==="function"){
+        await tcLoadTeamFromCloud();
+        redraw();
+        log("Cloud načten.");
+        return true;
+      }
+      if(typeof loadTeamFromCloud==="function"){
+        await loadTeamFromCloud();
+        redraw();
+        log("Cloud načten.");
+        return true;
+      }
+    }catch(e){
+      console.warn("[TC Sync] initial load skipped/failed",e);
+      log("Live Sync čeká na cloud: "+(e.message||e));
+    }
+    return false;
+  }
+
+  function startListener(){
+    if(tcSyncStarting)return;
+    tcSyncStarting=true;
+    try{
+      if(tcSyncUnsubscribe){
+        try{tcSyncUnsubscribe()}catch(_){}
+        tcSyncUnsubscribe=null;
+      }
+
+      if(typeof tcCloudListenSnapshot==="function"){
+        tcSyncUnsubscribe=tcCloudListenSnapshot(ownerId(),teamId(),function(snap){applySnapshot(snap)});
+        log("Live Sync: zapnuto");
+        tcSyncStarting=false;
+        return true;
+      }
+      if(typeof tcStartLiveSync==="function"){
+        tcStartLiveSync();
+        log("Live Sync: zapnuto");
+        tcSyncStarting=false;
+        return true;
+      }
+
+      if(window.tcSyncPollTimer)clearInterval(window.tcSyncPollTimer);
+      window.tcSyncPollTimer=setInterval(loadOnce,10000);
+      loadOnce();
+      log("Live Sync: zapnuto přes polling");
+      tcSyncStarting=false;
+      return true;
+    }catch(e){
+      tcSyncStarting=false;
+      console.error("[TC Sync] listener start failed",e);
+      log("Live Sync chyba: "+(e.message||e));
+      return false;
+    }
+  }
+
+  function wrapSaveFunction(name){
+    let old=window[name];
+    if(typeof old!=="function" || old._tc401sync)return;
+    let wrapped=function(){
+      let res=old.apply(this,arguments);
+      setTimeout(()=>{redraw();scheduleSave(name)},150);
+      return res;
+    };
+    wrapped._tc401sync=true;
+    window[name]=wrapped;
+  }
+
+  function wrapSetFunction(name){
+    let old=window[name];
+    if(typeof old!=="function" || old._tc401sync)return;
+    let wrapped=function(){
+      let res=old.apply(this,arguments);
+      scheduleSave(name);
+      setTimeout(redraw,80);
+      return res;
+    };
+    wrapped._tc401sync=true;
+    window[name]=wrapped;
+  }
+
+  function wrapApplySnapshot(){
+    let old=window.tcApplyTeamSnapshot;
+    if(typeof old!=="function" || old._tc401sync)return;
+    let wrapped=function(){
+      let res=old.apply(this,arguments);
+      setTimeout(redraw,80);
+      return res;
+    };
+    wrapped._tc401sync=true;
+    window.tcApplyTeamSnapshot=wrapped;
+  }
+
+  function install(){
+    ["saveTraining","deleteTraining","savePlayer","addPlayer","removePlayer","saveStaff","addStaff","removeStaff","setAttendance"].forEach(wrapSaveFunction);
+    ["setTrs","setPlayers","setStaff","setAts"].forEach(wrapSetFunction);
+    wrapApplySnapshot();
+
+    setTimeout(()=>{loadOnce().then(startListener)},300);
+    setTimeout(startListener,1500);
+
+    document.addEventListener("visibilitychange",()=>{
+      if(!document.hidden){
+        loadOnce().then(startListener);
+        setTimeout(redraw,250);
+      }
+    });
+
+    window.addEventListener("focus",()=>{
+      loadOnce().then(startListener);
+      setTimeout(redraw,250);
+    });
+
+    window.tcSyncEngineRestart=function(){loadOnce().then(startListener);redraw()};
+    window.tcSyncEngineSaveNow=saveNow;
+  }
+
+  install();
+  window.TC_BUILD="4.0.1-sync-engine";
+})();
 </script>
 
 </body>
