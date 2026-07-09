@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Touchline Coach</title>
+<!-- TC 4.0.2 Delete Event Fix -->
 <!-- TC 4.0.1 Sync Engine -->
 <!-- TC 3.5.4 Start na Přehled -->
 <!-- TC 3.5.2 Owner Start + Calendar Mode Fix -->
@@ -2549,6 +2550,75 @@ console.log("TC Cloud ready:", firebaseConfig.projectId);
 
   install();
   window.TC_BUILD="4.0.1-sync-engine";
+})();
+</script>
+
+
+<script>
+/* --- TC 4.0.2 Delete Event Fix --- */
+(function(){
+  function saveCloud(){
+    try{
+      if(typeof tcSyncEngineSaveNow==="function"){setTimeout(()=>tcSyncEngineSaveNow("delete-event"),100);return;}
+      if(typeof tcSaveTeamToCloud==="function"){setTimeout(()=>tcSaveTeamToCloud(),100);return;}
+      if(typeof saveTeamToCloud==="function"){setTimeout(()=>saveTeamToCloud(),100);return;}
+      if(typeof tcCloudSaveSnapshot==="function" && typeof tcBuildTeamSnapshot==="function"){
+        setTimeout(()=>tcCloudSaveSnapshot(tcBuildTeamSnapshot()),100);
+        return;
+      }
+    }catch(e){console.warn("Delete cloud save failed",e)}
+  }
+
+  window.deleteTraining = function(){
+    if(typeof tcGuard==="function" && !tcGuard("calendar","edit"))return;
+
+    const d = window.selectedDate || (typeof selectedDate!=="undefined" ? selectedDate : null);
+    if(!d){
+      alert("Nejdřív vyber den.");
+      return;
+    }
+
+    if(!confirm("Opravdu smazat tuto akci?"))return;
+
+    try{
+      const data = typeof trs==="function" ? trs() : JSON.parse(localStorage.getItem("trainings")||"{}");
+      delete data[d];
+
+      if(typeof setTrs==="function")setTrs(data);
+      else localStorage.setItem("trainings",JSON.stringify(data));
+
+      window.selectedDate=null;
+      try{selectedDate=null;}catch(_){}
+
+      const editor=document.getElementById("editor");
+      if(editor){
+        editor.classList.add("hidden");
+        editor.innerHTML="";
+      }
+
+      if(typeof render==="function")render();
+      if(typeof renderCal==="function")renderCal();
+
+      saveCloud();
+
+      const msg=document.getElementById("calendarMsg")||document.getElementById("cloudStatus");
+      if(msg)msg.textContent="Akce smazána.";
+    }catch(e){
+      console.error("Delete event failed",e);
+      alert("Smazání se nepovedlo: "+(e.message||e));
+    }
+  };
+
+  setTimeout(()=>{
+    document.querySelectorAll("button").forEach(b=>{
+      const t=(b.textContent||"").trim().toLowerCase();
+      if(t==="smazat" || t.includes("smazat trénink") || t.includes("smazat utkání")){
+        b.onclick=function(){deleteTraining()};
+      }
+    });
+  },300);
+
+  window.TC_BUILD="4.0.2-delete-event-fix";
 })();
 </script>
 
