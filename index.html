@@ -236,16 +236,6 @@ button[onclick*="deleteVideo"],
 #nav-trezor,[data-tab="trezor"]{display:none!important;}
 </style>
 
-
-<style>
-/* TC 3.6.0 Match Event */
-.tcEventSwitch{display:flex;gap:8px;margin:10px 0;flex-wrap:wrap}
-.tcEventSwitch button.active{filter:brightness(1.25)}
-.tcMatchGrid{display:grid;gap:8px}
-.tcNomination{width:100%;min-height:110px;resize:none;overflow:hidden;line-height:1.35;margin-top:8px}
-.tcMatchInfo{display:grid;gap:6px;margin-top:8px}
-</style>
-
 </head>
 <body class="home-premium">
 <header>
@@ -871,44 +861,27 @@ function tcTrainingReadOnlyHtml(date){
 function selectDay(date){
   selectedDate=date;
   let title=document.getElementById('selTitle');
-  if(title)title.textContent='Akce '+date.split('-').reverse().join('.');
+  if(title)title.textContent='Trénink '+date.split('-').reverse().join('.');
   let editor=document.getElementById('editor');
   if(editor)editor.classList.remove('hidden');
 
-  let t=trs()[date]||{type:'training',time:'',place:'',blocks:[]};
+  tcCaptureCalendarEditor();
 
   if(!tcIsAdminLike()){
-    if(editor){
-      if((t.type||"training")==="match")editor.innerHTML=tcMatchReadOnlyHtml(date,t);
-      else editor.innerHTML=tcTrainingReadOnlyHtml(date);
-    }
+    if(editor)editor.innerHTML=tcTrainingReadOnlyHtml(date);
     return;
   }
 
-  if(typeof tcRestoreCalendarEditor==="function")tcRestoreCalendarEditor();
-  tcEnsureMatchEditor();
+  tcRestoreCalendarEditor();
 
-  let type=t.type||'training';
-  let eventType=document.getElementById('eventType');
-  if(eventType)eventType.value=type;
-
+  let t=trs()[date]||{time:'',place:'',blocks:[]};
   let trTime=document.getElementById('trTime');
   let trPlace=document.getElementById('trPlace');
   if(trTime)trTime.value=t.time||'';
   if(trPlace)trPlace.value=t.place||'';
 
-  let mo=document.getElementById('matchOpponent');
-  let mp=document.getElementById('matchPlace');
-  let mm=document.getElementById('matchMeeting');
-  let mn=document.getElementById('matchNomination');
-  if(mo)mo.value=t.opponent||'';
-  if(mp)mp.value=t.place||'';
-  if(mm)mm.value=t.meetingTime||'';
-  if(mn)mn.value=t.nomination||'';
-
   renderBlocks(t.blocks||[]);
-  tcRenderEventFields(type);
-  setTimeout(()=>{tcGrowNomination(); if(typeof tcRemoveMediaControlsHard==="function")tcRemoveMediaControlsHard(); if(typeof tcHideMediaControls==="function")tcHideMediaControls();},80);
+  setTimeout(()=>{if(typeof tcRemoveMediaControlsHard==="function")tcRemoveMediaControlsHard(); if(typeof tcHideMediaControls==="function")tcHideMediaControls();},80);
 }
 function renderBlocks(blocks){
   let box=document.getElementById('blocks');
@@ -952,33 +925,17 @@ function removeBlock(i){
 function saveTraining(){
   if(!tcGuard("calendar","edit"))return;
   if(!selectedDate)return;
-  let type=tcEventType();
   let t=trs();
-
-  if(type==="match"){
-    t[selectedDate]={
-      type:"match",
-      time:document.getElementById('trTime')?document.getElementById('trTime').value:'',
-      place:document.getElementById('matchPlace')?document.getElementById('matchPlace').value:'',
-      opponent:document.getElementById('matchOpponent')?document.getElementById('matchOpponent').value:'',
-      meetingTime:document.getElementById('matchMeeting')?document.getElementById('matchMeeting').value:'',
-      nomination:document.getElementById('matchNomination')?document.getElementById('matchNomination').value:'',
-      blocks:[]
-    };
-  }else{
-    t[selectedDate]={
-      type:"training",
-      time:document.getElementById('trTime')?document.getElementById('trTime').value:'',
-      place:document.getElementById('trPlace')?document.getElementById('trPlace').value:'',
-      blocks:getBlocks()
-    };
-  }
-
+  t[selectedDate]={
+    time:document.getElementById('trTime')?document.getElementById('trTime').value:'',
+    place:document.getElementById('trPlace')?document.getElementById('trPlace').value:'',
+    blocks:getBlocks()
+  };
   setTrs(t);
   render();
   selectDay(selectedDate);
   let msg=document.getElementById('calendarMsg')||document.getElementById('cloudStatus');
-  if(msg)msg.textContent=type==="match"?'Utkání uloženo.':'Trénink uložen.';
+  if(msg)msg.textContent='Trénink uložen.';
 }
 function deleteTraining(){if(!tcGuard("calendar","edit"))return;if(!selectedDate)return;let t=trs();delete t[selectedDate];setTrs(t);setAttObj({});document.getElementById('editor').classList.add('hidden');selectedDate=null;render()}
 
