@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Touchline Coach</title>
+<!-- TC 3.5.4 Start na Přehled -->
 <!-- TC 3.5.2 Owner Start + Calendar Mode Fix -->
 <!-- TC 3.5.0 Clean Training Editor -->
 <!-- TC 3.3.0 Training UX -->
@@ -1162,7 +1163,14 @@ function tcRestoreFullOwnerUI(){
 
 
 function tcSwitchToOwner(){
-  tcForceOwnerMode();
+  if(typeof tcForceOwnerMode==="function")tcForceOwnerMode();
+  else{
+    currentPlayerId=null;
+    currentStaffId=null;
+    localStorage.removeItem(LL);
+    localStorage.removeItem(LRT);
+    localStorage.setItem(TC_GUEST_DONE_KEY,"1");
+  }
 
   let access=document.getElementById("accessCode");
   if(access)access.value="";
@@ -1180,8 +1188,8 @@ function tcSwitchToOwner(){
 
   if(typeof tcSaveTeamIdentity==="function")tcSaveTeamIdentity();
   render();
-  if(typeof tcRestoreFullOwnerUI==="function")tcRestoreFullOwnerUI();
-  else tab("home");
+  if(typeof tcRestoreCalendarEditor==="function")tcRestoreCalendarEditor();
+  tcGoOverview();
 }
 
 
@@ -1199,8 +1207,7 @@ function tcShowGuest(){
 }
 
 function tcShowAppAfterLogin(){
-  document.querySelectorAll('nav button').forEach(b=>{b.style.display="";b.classList.remove("hidden")});
-  tab("home");
+  tcGoOverview();
 }
 
 
@@ -1289,16 +1296,35 @@ async function guestLoginCloudFirst(){
 
 function guestLogin(){guestLoginCloudFirst()}
 
+
+/* --- TC 3.5.4 Start na Přehled --- */
+function tcGoOverview(){
+  document.querySelectorAll('nav button').forEach(b=>{
+    b.style.display="";
+    b.classList.remove("hidden");
+    b.classList.remove("active");
+  });
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  let home=document.getElementById("home");
+  if(home)home.classList.add("active");
+  let navHome=document.getElementById("nav-home");
+  if(navHome)navHome.classList.add("active");
+  if(typeof tcApplyRoleBasedUI==="function")setTimeout(tcApplyRoleBasedUI,50);
+}
+
+
 function tcPublicStart(){
   if(tcOwnerDeviceShouldStartAsOwner()){
     tcForceOwnerMode();
-    document.querySelectorAll('nav button').forEach(b=>{b.style.display="";b.classList.remove("hidden")});
-    tab("home");
+    tcGoOverview();
     return;
   }
   let logged=!!localStorage.getItem(LL)||!!localStorage.getItem(LRT)||localStorage.getItem(TC_GUEST_DONE_KEY)==="1";
-  if(!logged)tcShowGuest();
-  else document.querySelectorAll('nav button').forEach(b=>b.style.display="");
+  if(!logged){
+    tcShowGuest();
+  }else{
+    tcGoOverview();
+  }
 }
 
 
@@ -1313,7 +1339,7 @@ function accessLogin(){
     currentPlayerId=null;localStorage.removeItem(LL);
     localStorage.setItem(TC_GUEST_DONE_KEY,"1");
     if(msg)msg.textContent='Přihlášen RT: '+st.name+' • '+roleText(st.role);
-    render();tab('home');return;
+    render();tcGoOverview();return;
   }
 
   let p=players().find(x=>String(x.code||'').toUpperCase()===code);
@@ -1322,7 +1348,7 @@ function accessLogin(){
     currentStaffId=null;localStorage.removeItem(LRT);
     localStorage.setItem(TC_GUEST_DONE_KEY,"1");
     if(msg)msg.textContent='Přihlášena hráčka: '+p.name;
-    render();tab('login');return;
+    render();tcGoOverview();return;
   }
 
   if(msg)msg.textContent='Kód nenalezen.';
