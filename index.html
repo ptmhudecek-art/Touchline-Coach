@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Touchline Coach</title>
+<!-- TC 4.0.3 Hard Delete Cloud Fix -->
 <!-- TC 4.0.2 Delete Event Fix -->
 <!-- TC 4.0.1 Sync Engine -->
 <!-- TC 3.5.4 Start na Přehled -->
@@ -2619,6 +2620,175 @@ console.log("TC Cloud ready:", firebaseConfig.projectId);
   },300);
 
   window.TC_BUILD="4.0.2-delete-event-fix";
+})();
+</script>
+
+
+<script>
+/* --- TC 4.0.3 Hard Delete Cloud Fix ---
+Řeší zombie návrat smazané akce:
+- datum vezme i z nadpisu Akce dd.mm.yyyy
+- smaže lokálně
+- hned uloží celý snapshot do cloudu
+- po lokální změně krátce ignoruje starý cloud snapshot
+*/
+(function(){
+  if(window.TC_HARD_DELETE_403)return;
+  window.TC_HARD_DELETE_403=true;
+
+  window.tcLocalMutationUntil = 0;
+
+  function q(id){return document.getElementById(id)}
+
+  function currentDate(){
+    if(window.selectedDate)return window.selectedDate;
+    try{
+      if(typeof selectedDate!=="undefined" && selectedDate)return selectedDate;
+    }catch(_){}
+
+    const title=q("selTitle");
+    const txt=title?(title.textContent||""):"";
+    const m=txt.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+    if(m){
+      const dd=String(m[1]).padStart(2,"0");
+      const mm=String(m[2]).padStart(2,"0");
+      return `${m[3]}-${mm}-${dd}`;
+    }
+    return null;
+  }
+
+  function ownerId(){
+    try{
+      if(typeof tcOwnerId==="function")return tcOwnerId();
+      return localStorage.getItem("tc_owner_id_v01")||"own_local";
+    }catch(_){return "own_local"}
+  }
+
+  function teamId(){
+    try{
+      if(typeof tcUiActiveTeamId==="function")return tcUiActiveTeamId();
+      return localStorage.getItem("tc_ui_active_team_v01")||"zbiroh_default";
+    }catch(_){return "zbiroh_default"}
+  }
+
+  function buildSnapshot(reason){
+    if(typeof tcBuildTeamSnapshot==="function"){
+      const s=tcBuildTeamSnapshot();
+      s.updatedAt=Date.now();
+      s.syncReason=reason||"hard-delete";
+      return s;
+    }
+    const s={ownerId:ownerId(),teamId:teamId(),updatedAt:Date.now(),syncReason:reason||"hard-delete"};
+    try{s.players=typeof players==="function"?players():JSON.parse(localStorage.getItem("players")||"[]")}catch(_){}
+    try{s.staff=typeof staff==="function"?staff():JSON.parse(localStorage.getItem("staff")||"[]")}catch(_){}
+    try{s.trainings=typeof trs==="function"?trs():JSON.parse(localStorage.getItem("trainings")||"{}")}catch(_){}
+    try{s.attendance=typeof ats==="function"?ats():JSON.parse(localStorage.getItem("attendance")||"{}")}catch(_){}
+    return s;
+  }
+
+  async function forceCloudSave(reason){
+    const snapshot=buildSnapshot(reason);
+    try{
+      if(typeof tcCloudSaveSnapshot==="function"){
+        await tcCloudSaveSnapshot(snapshot);
+        return true;
+      }
+      if(typeof tcSaveTeamToCloud==="function"){
+        await tcSaveTeamToCloud();
+        return true;
+      }
+      if(typeof saveTeamToCloud==="function"){
+        await saveTeamToCloud();
+        return true;
+      }
+      if(typeof tcSyncEngineSaveNow==="function"){
+        await tcSyncEngineSaveNow(reason||"hard-delete");
+        return true;
+      }
+    }catch(e){
+      console.error("Hard cloud save failed",e);
+      alert("Smazáno lokálně, ale cloud save selhal: "+(e.message||e));
+      return false;
+    }
+    alert("Smazáno lokálně, ale nenašel jsem funkci pro uložení do cloudu.");
+    return false;
+  }
+
+  function redrawAfterDelete(){
+    const editor=q("editor");
+    if(editor){
+      editor.classList.add("hidden");
+      editor.innerHTML="";
+    }
+    try{if(typeof render==="function")render()}catch(e){}
+    try{if(typeof renderCal==="function")renderCal()}catch(e){}
+    const msg=q("calendarMsg")||q("cloudStatus");
+    if(msg)msg.textContent="Akce smazána a odeslána do cloudu.";
+  }
+
+  // Guard cloud apply: immediately after local change do not let older snapshot resurrect deleted item.
+  const oldApply=window.tcApplyTeamSnapshot;
+  if(typeof oldApply==="function" && !oldApply._tc403HardDelete){
+    const wrapped=function(snap){
+      if(Date.now() < (window.tcLocalMutationUntil||0)){
+        console.warn("[TC 4.0.3] Ignoruji starý cloud snapshot po lokální změně.");
+        return;
+      }
+      return oldApply.apply(this,arguments);
+    };
+    wrapped._tc403HardDelete=true;
+    window.tcApplyTeamSnapshot=wrapped;
+  }
+
+  window.deleteTraining = async function(){
+    if(typeof tcGuard==="function" && !tcGuard("calendar","edit"))return;
+
+    const d=currentDate();
+    if(!d){
+      alert("Nejdřív vyber den.");
+      return;
+    }
+
+    if(!confirm("Opravdu smazat tuto akci?"))return;
+
+    try{
+      const data = typeof trs==="function" ? trs() : JSON.parse(localStorage.getItem("trainings")||"{}");
+      delete data[d];
+
+      window.tcLocalMutationUntil = Date.now()+5000;
+
+      if(typeof setTrs==="function")setTrs(data);
+      else localStorage.setItem("trainings",JSON.stringify(data));
+
+      window.selectedDate=null;
+      try{selectedDate=null;}catch(_){}
+
+      redrawAfterDelete();
+
+      const ok=await forceCloudSave("delete-"+d);
+      if(ok){
+        // allow fresh remote updates after save has landed
+        setTimeout(()=>{window.tcLocalMutationUntil=0;},1500);
+      }
+    }catch(e){
+      console.error("Hard delete failed",e);
+      alert("Smazání se nepovedlo: "+(e.message||e));
+    }
+  };
+
+  // Rebind existing delete buttons whenever editor appears.
+  function rebindDeleteButtons(){
+    document.querySelectorAll("button").forEach(b=>{
+      const t=(b.textContent||"").trim().toLowerCase();
+      if(t==="smazat" || t.includes("smazat trénink") || t.includes("smazat utkání")){
+        b.onclick=function(){deleteTraining()};
+      }
+    });
+  }
+  setInterval(rebindDeleteButtons,1000);
+  setTimeout(rebindDeleteButtons,300);
+
+  window.TC_BUILD="4.0.3-hard-delete-cloud-fix";
 })();
 </script>
 
