@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Touchline Coach</title>
+<!-- TC 3.5.2 Owner Start + Calendar Mode Fix -->
 <!-- TC 3.5.0 Clean Training Editor -->
 <!-- TC 3.3.0 Training UX -->
 <!-- TC 3.1.1 Clean Test Build -->
@@ -749,6 +750,36 @@ async function tcRenderReadonlyTraining(date){
 /* --- TC 3.5.0 Clean Training Editor ---
 Bez médií. Blok = název, čas, rozšiřovací popis.
 */
+
+/* --- TC 3.5.2 Owner Start + Calendar Mode Fix --- */
+let tcCalendarEditorTemplate = null;
+
+function tcCaptureCalendarEditor(){
+  let editor=document.getElementById("editor");
+  if(editor && !tcCalendarEditorTemplate && editor.querySelector("#trTime")){
+    tcCalendarEditorTemplate=editor.innerHTML;
+  }
+}
+function tcRestoreCalendarEditor(){
+  let editor=document.getElementById("editor");
+  if(!editor)return;
+  if(!editor.querySelector("#trTime") && tcCalendarEditorTemplate){
+    editor.innerHTML=tcCalendarEditorTemplate;
+  }
+}
+function tcForceOwnerMode(){
+  currentPlayerId=null;
+  currentStaffId=null;
+  localStorage.removeItem(LL);
+  localStorage.removeItem(LRT);
+  localStorage.setItem(TC_GUEST_DONE_KEY,"1");
+  tcRestoreCalendarEditor();
+}
+function tcOwnerDeviceShouldStartAsOwner(){
+  return !!localStorage.getItem("tc_owner_id_v01") && !localStorage.getItem(LL) && !localStorage.getItem(LRT);
+}
+
+
 function tcAutoGrow(el){
   if(!el)return;
   el.style.height="auto";
@@ -827,10 +858,14 @@ function selectDay(date){
   let editor=document.getElementById('editor');
   if(editor)editor.classList.remove('hidden');
 
+  tcCaptureCalendarEditor();
+
   if(!tcIsAdminLike()){
     if(editor)editor.innerHTML=tcTrainingReadOnlyHtml(date);
     return;
   }
+
+  tcRestoreCalendarEditor();
 
   let t=trs()[date]||{time:'',place:'',blocks:[]};
   let trTime=document.getElementById('trTime');
@@ -839,9 +874,7 @@ function selectDay(date){
   if(trPlace)trPlace.value=t.place||'';
 
   renderBlocks(t.blocks||[]);
-  setTimeout(tcHideMediaControls,50);
-
-  setTimeout(tcRemoveMediaControlsHard,80);
+  setTimeout(()=>{if(typeof tcRemoveMediaControlsHard==="function")tcRemoveMediaControlsHard(); if(typeof tcHideMediaControls==="function")tcHideMediaControls();},80);
 }
 function renderBlocks(blocks){
   let box=document.getElementById('blocks');
@@ -1117,15 +1150,13 @@ function tcRestoreFullOwnerUI(){
   let navHome=document.getElementById("nav-home");
   if(navHome)navHome.classList.add("active");
   if(typeof tcApplyRoleBasedUI==="function")setTimeout(tcApplyRoleBasedUI,50);
+
+  tcRestoreCalendarEditor();
 }
 
 
 function tcSwitchToOwner(){
-  currentPlayerId=null;
-  currentStaffId=null;
-  localStorage.removeItem(LL);
-  localStorage.removeItem(LRT);
-  localStorage.setItem(TC_GUEST_DONE_KEY,"1");
+  tcForceOwnerMode();
 
   let access=document.getElementById("accessCode");
   if(access)access.value="";
@@ -1143,7 +1174,8 @@ function tcSwitchToOwner(){
 
   if(typeof tcSaveTeamIdentity==="function")tcSaveTeamIdentity();
   render();
-  tcRestoreFullOwnerUI();
+  if(typeof tcRestoreFullOwnerUI==="function")tcRestoreFullOwnerUI();
+  else tab("home");
 }
 
 
@@ -1252,6 +1284,12 @@ async function guestLoginCloudFirst(){
 function guestLogin(){guestLoginCloudFirst()}
 
 function tcPublicStart(){
+  if(tcOwnerDeviceShouldStartAsOwner()){
+    tcForceOwnerMode();
+    document.querySelectorAll('nav button').forEach(b=>{b.style.display="";b.classList.remove("hidden")});
+    tab("home");
+    return;
+  }
   let logged=!!localStorage.getItem(LL)||!!localStorage.getItem(LRT)||localStorage.getItem(TC_GUEST_DONE_KEY)==="1";
   if(!logged)tcShowGuest();
   else document.querySelectorAll('nav button').forEach(b=>b.style.display="");
@@ -1887,6 +1925,8 @@ function render(){
   if(typeof tcApplyRoleBasedUI==="function")tcApplyRoleBasedUI();tcHideMediaControls();
 
   setTimeout(tcRemoveMediaControlsHard,80);
+
+  tcCaptureCalendarEditor();
 }
 restore();render();tcPublicStart();
 setTimeout(tcRemoveMediaControlsHard,500);
