@@ -257,6 +257,16 @@ button[onclick*="deleteVideo"],
 .tcMatchInfo{display:grid;gap:6px;margin-top:8px}
 </style>
 
+
+<style>
+/* TC 3.6.2 Stable Base Candidate */
+.cal .day.has-match,.day.has-match{border:1px solid rgba(239,68,68,.65)!important;box-shadow:0 0 0 1px rgba(239,68,68,.15) inset;}
+.cal .dot.match,.dot.match{background:#3b82f6!important;}
+.cal .dot.training,.dot.training{background:#22c55e!important;}
+.tcSaveBtn{background:#16a34a!important;color:white!important}
+.tcDeleteBtn{background:#dc2626!important;color:white!important}
+</style>
+
 </head>
 <body class="home-premium">
 <header>
@@ -713,7 +723,9 @@ function renderAttendance(){
 }
 function renderSummary(){let s={yes:0,injury:0,work:0,other:0,none:0},a=att();players().forEach(p=>s[a[p.id]||'none']++);let exc=s.injury+s.work+s.other;[['sumYes',s.yes+' Přijde'],['sumInj',s.injury+' Zranění'],['sumWork',s.work+' Práce/škola'],['sumOther',s.other+' Ostatní'],['sumNone',s.none+' Bez odpovědi'],['hYes',s.yes+' přijde'],['hExc',exc+' omluveno'],['hNone',s.none+' bez reakce']].forEach(x=>{let e=document.getElementById(x[0]);if(e)e.textContent=x[1]})}
 
-function renderCal(){let grid=document.getElementById('cal');grid.innerHTML='';let months=['leden','únor','březen','duben','květen','červen','červenec','srpen','září','říjen','listopad','prosinec'];document.getElementById('monthTitle').textContent=months[viewDate.getMonth()]+' '+viewDate.getFullYear();['Po','Út','St','Čt','Pá','So','Ne'].forEach(d=>grid.innerHTML+='<div class=head>'+d+'</div>');let y=viewDate.getFullYear(),m=viewDate.getMonth(),first=new Date(y,m,1),start=(first.getDay()+6)%7,days=new Date(y,m+1,0).getDate(),t=trs(),today=iso(new Date());for(let i=0;i<start;i++)grid.innerHTML+='<div></div>';for(let d=1;d<=days;d++){let date=iso(new Date(y,m,d));grid.innerHTML+=`<button class="day ${t[date]?'has':''} ${date===today?'today':''}" onclick="selectDay('${date}')">${d}${t[date]?'<span class=dot></span>':''}</button>`}}
+function renderCal(){let grid=document.getElementById('cal');grid.innerHTML='';let months=['leden','únor','březen','duben','květen','červen','červenec','srpen','září','říjen','listopad','prosinec'];document.getElementById('monthTitle').textContent=months[viewDate.getMonth()]+' '+viewDate.getFullYear();['Po','Út','St','Čt','Pá','So','Ne'].forEach(d=>grid.innerHTML+='<div class=head>'+d+'</div>');let y=viewDate.getFullYear(),m=viewDate.getMonth(),first=new Date(y,m,1),start=(first.getDay()+6)%7,days=new Date(y,m+1,0).getDate(),t=trs(),today=iso(new Date());for(let i=0;i<start;i++)grid.innerHTML+='<div></div>';for(let d=1;d<=days;d++){let date=iso(new Date(y,m,d));grid.innerHTML+=`<button class="day ${t[date]?'has':''} ${date===today?'today':''}" onclick="selectDay('${date}')">${d}${t[date]?'<span class=dot></span>':''}</button>`}
+  setTimeout(tcEnhanceCalendarColors,50);
+}
 function moveMonth(n){viewDate=new Date(viewDate.getFullYear(),viewDate.getMonth()+n,1);renderCal()}
 
 /* --- TC 3.3.0 Training UX ---
@@ -910,6 +922,8 @@ function selectDay(date){
   renderBlocks(t.blocks||[]);
   tcRenderEventFields(type);
   setTimeout(()=>{tcGrowNomination();tcHideTrezorNav();},80);
+
+  setTimeout(tcNormalizeEditorButtons,90);
 }
 function renderBlocks(blocks){
   let box=document.getElementById('blocks');
@@ -955,16 +969,36 @@ function saveTraining(){
   if(!selectedDate)return;
   let type=tcEventType();
   let t=trs();
+
   if(type==="match"){
-    t[selectedDate]={type:"match",time:document.getElementById('trTime')?document.getElementById('trTime').value:'',place:document.getElementById('matchPlace')?document.getElementById('matchPlace').value:'',opponent:document.getElementById('matchOpponent')?document.getElementById('matchOpponent').value:'',meetingTime:document.getElementById('matchMeeting')?document.getElementById('matchMeeting').value:'',nomination:document.getElementById('matchNomination')?document.getElementById('matchNomination').value:'',blocks:[]};
+    t[selectedDate]={
+      type:"match",
+      time:document.getElementById('trTime')?document.getElementById('trTime').value:'',
+      place:document.getElementById('matchPlace')?document.getElementById('matchPlace').value:'',
+      opponent:document.getElementById('matchOpponent')?document.getElementById('matchOpponent').value:'',
+      meetingTime:document.getElementById('matchMeeting')?document.getElementById('matchMeeting').value:'',
+      nomination:document.getElementById('matchNomination')?document.getElementById('matchNomination').value:'',
+      blocks:[]
+    };
   }else{
-    t[selectedDate]={type:"training",time:document.getElementById('trTime')?document.getElementById('trTime').value:'',place:document.getElementById('trPlace')?document.getElementById('trPlace').value:'',blocks:getBlocks()};
+    t[selectedDate]={
+      type:"training",
+      time:document.getElementById('trTime')?document.getElementById('trTime').value:'',
+      place:document.getElementById('trPlace')?document.getElementById('trPlace').value:'',
+      blocks:getBlocks()
+    };
   }
-  setTrs(t);render();selectDay(selectedDate);
+
+  setTrs(t);
+  render();
+  selectDay(selectedDate);
   let msg=document.getElementById('calendarMsg')||document.getElementById('cloudStatus');
-  if(msg)msg.textContent=type==="match"?'Utkání uloženo.':'Trénink uložen.';
+  if(msg)msg.textContent='Uloženo.';
 }
-function deleteTraining(){if(!tcGuard("calendar","edit"))return;if(!selectedDate)return;let t=trs();delete t[selectedDate];setTrs(t);setAttObj({});document.getElementById('editor').classList.add('hidden');selectedDate=null;render()}
+function deleteTraining(){
+  if(!tcGuard("calendar","edit"))return;
+  tcDeleteCurrentEvent();
+}
 
 
 async function savePhoto(){if(!tcGuard("calendar","edit"))return;
@@ -1337,6 +1371,54 @@ function tcGoOverview(){
   if(typeof tcApplyRoleBasedUI==="function")setTimeout(tcApplyRoleBasedUI,50);
   setTimeout(tcHideTrezorNav,80);
 }
+
+/* --- TC 3.6.2 Stable Base Candidate --- */
+function tcNormalizeEditorButtons(){
+  document.querySelectorAll("button").forEach(b=>{
+    let txt=(b.textContent||"").trim();
+    if(txt.includes("Uložit trénink")||txt.includes("Uložit utkání")||txt==="Uložit"){
+      b.textContent="Uložit";
+      b.classList.add("tcSaveBtn");
+    }
+    if(txt.includes("Smazat trénink")||txt.includes("Smazat utkání")||txt==="Smazat"){
+      b.textContent="Smazat";
+      b.classList.add("tcDeleteBtn");
+    }
+    if(txt.includes("Přidat blok")){
+      b.style.display = (typeof tcEventType==="function" && tcEventType()==="match") ? "none" : "";
+    }
+  });
+}
+function tcDeleteCurrentEvent(){
+  if(!selectedDate)return;
+  if(!confirm("Opravdu smazat tuto akci?"))return;
+  let t=trs();
+  delete t[selectedDate];
+  setTrs(t);
+  selectedDate=null;
+  let editor=document.getElementById("editor");
+  if(editor)editor.classList.add("hidden");
+  render();
+  let msg=document.getElementById("calendarMsg")||document.getElementById("cloudStatus");
+  if(msg)msg.textContent="Akce smazána.";
+}
+function tcEnhanceCalendarColors(){
+  let data=trs();
+  document.querySelectorAll("[data-date]").forEach(day=>{
+    let date=day.getAttribute("data-date");
+    let ev=data[date];
+    if(!ev)return;
+    day.classList.remove("has-match","has-training");
+    day.classList.add((ev.type||"training")==="match"?"has-match":"has-training");
+    let dot=day.querySelector(".dot");
+    if(dot){
+      dot.classList.remove("match","training");
+      dot.classList.add((ev.type||"training")==="match"?"match":"training");
+    }
+  });
+}
+
+
 function tcEventType(){let e=document.getElementById("eventType");return e?e.value:"training"}
 function tcSetEventType(type){let e=document.getElementById("eventType");if(e)e.value=type;tcRenderEventFields(type)}
 function tcGrowNomination(){let e=document.getElementById("matchNomination");if(e&&typeof tcAutoGrow==="function")tcAutoGrow(e)}
@@ -1346,7 +1428,9 @@ function tcRenderEventFields(type){
   if(trainingBox)trainingBox.classList.toggle("hidden",type==="match");
   if(matchBox)matchBox.classList.toggle("hidden",type!=="match");
   document.querySelectorAll(".tcTypeBtn").forEach(b=>b.classList.toggle("active",b.dataset.type===type));
-  setTimeout(tcGrowNomination,30);
+  let time=document.getElementById("trTime");
+  if(time)time.placeholder=type==="match"?"Čas utkání":"Čas tréninku";
+  setTimeout(()=>{tcGrowNomination();tcNormalizeEditorButtons();},30);
 }
 function tcMatchReadOnlyHtml(date,t){
   let out=`<div class="card" style="background:#11141a"><h3>Utkání</h3><div class="tcMatchInfo">
@@ -2036,6 +2120,8 @@ function render(){
   setTimeout(tcRemoveMediaControlsHard,80);
 
   tcCaptureCalendarEditor();
+
+  setTimeout(tcEnhanceCalendarColors,80);setTimeout(tcNormalizeEditorButtons,90);
 }
 restore();render();tcPublicStart();
 setTimeout(tcRemoveMediaControlsHard,500);
