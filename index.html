@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Touchline Coach</title>
+<!-- TC 3.5.5 Stable Sync Delete Fix -->
 <!-- TC 3.5.4 Start na Přehled -->
 <!-- TC 3.5.2 Owner Start + Calendar Mode Fix -->
 <!-- TC 3.5.0 Clean Training Editor -->
@@ -2121,6 +2122,231 @@ window.tcCloudWatchSnapshot = function(ownerId, teamId, callback){
 };
 
 console.log("TC Cloud ready:", firebaseConfig.projectId);
+</script>
+
+
+<script>
+/* --- TC 3.5.5 Stable Sync Delete Fix ---
+Base: TC 3.5.4 Start Přehled.
+Fixuje jen uložení/smazání kalendáře do cloudu a zombie návrat starého snapshotu.
+*/
+(function(){
+  if(window.TC_355_SYNC_DELETE_FIX)return;
+  window.TC_355_SYNC_DELETE_FIX=true;
+
+  window.tcLocalCalendarMutationUntil = 0;
+  window.tcLocalCalendarMutationSavedAt = "";
+
+  function q(id){return document.getElementById(id)}
+
+  function status(msg){
+    try{
+      let e=q("cloudStatus")||q("calendarMsg");
+      if(e)e.textContent=msg;
+    }catch(_){}
+    console.log("[TC 3.5.5]",msg);
+  }
+
+  function selectedDay(){
+    try{
+      if(typeof selectedDate!=="undefined" && selectedDate)return selectedDate;
+    }catch(_){}
+    if(window.selectedDate)return window.selectedDate;
+    let title=q("selTitle");
+    let txt=title?title.textContent:"";
+    let m=txt.match(/(\d{1,2})\.(\d{1,2})\.(\d{4})/);
+    if(m){
+      return `${m[3]}-${String(m[2]).padStart(2,"0")}-${String(m[1]).padStart(2,"0")}`;
+    }
+    return null;
+  }
+
+  function localSnapshot(reason){
+    let snap;
+    if(typeof tcBuildTeamSnapshot==="function"){
+      snap=tcBuildTeamSnapshot();
+    }else{
+      snap={data:{}};
+      try{snap.data.members=typeof players==="function"?players():[]}catch(_){}
+      try{snap.data.staff=typeof staff==="function"?staff():[]}catch(_){}
+      try{snap.data.trainings=typeof trs==="function"?trs():{}}catch(_){}
+      try{snap.data.attendance=typeof att==="function"?att():{}}catch(_){}
+      try{snap.ownerId=typeof tcOwnerId==="function"?tcOwnerId():"own_local"}catch(_){snap.ownerId="own_local"}
+      try{snap.teamId=typeof tcUiActiveTeamId==="function"?tcUiActiveTeamId():"zbiroh_default"}catch(_){snap.teamId="zbiroh_default"}
+      snap.teamName="Tým";
+    }
+    snap.savedAt=new Date().toISOString();
+    snap.localMutationId="cal_"+Date.now()+"_"+Math.random().toString(36).slice(2);
+    snap.syncReason=reason||"calendar";
+    return snap;
+  }
+
+  async function hardCloudSave(reason){
+    const snap=localSnapshot(reason);
+    window.tcLocalCalendarMutationSavedAt=snap.savedAt;
+    window.tcLocalCalendarMutationUntil=Date.now()+6500;
+
+    try{
+      if(typeof window.tcCloudSaveSnapshot==="function"){
+        await window.tcCloudSaveSnapshot(snap);
+        status("Cloud uložen: "+(reason||"kalendář"));
+        setTimeout(()=>{window.tcLocalCalendarMutationUntil=0;},1800);
+        return true;
+      }
+      if(typeof tcCloudPushNow==="function"){
+        tcCloudPushNow(reason||"kalendář");
+        status("Cloud odeslán: "+(reason||"kalendář"));
+        setTimeout(()=>{window.tcLocalCalendarMutationUntil=0;},2200);
+        return true;
+      }
+      if(typeof tcSaveTeamToCloud==="function"){
+        tcSaveTeamToCloud();
+        status("Cloud odeslán: "+(reason||"kalendář"));
+        setTimeout(()=>{window.tcLocalCalendarMutationUntil=0;},2200);
+        return true;
+      }
+      status("Cloud save funkce nenalezena.");
+      return false;
+    }catch(e){
+      console.error("[TC 3.5.5] cloud save failed",e);
+      status("Cloud chyba: "+(e.message||e));
+      return false;
+    }
+  }
+
+  function isOlderThanLocal(snapshot){
+    if(!snapshot)return false;
+    if(Date.now() < (window.tcLocalCalendarMutationUntil||0)){
+      let s=snapshot.savedAt||"";
+      let local=window.tcLocalCalendarMutationSavedAt||"";
+      if(!s || !local || s < local){
+        return true;
+      }
+    }
+    return false;
+  }
+
+  // Wrap cloud apply to stop old cloud from resurrecting deleted/changed training.
+  if(typeof tcApplyTeamSnapshot==="function" && !tcApplyTeamSnapshot._tc355){
+    const oldApply=tcApplyTeamSnapshot;
+    window.tcApplyTeamSnapshot=function(snapshot){
+      if(isOlderThanLocal(snapshot)){
+        status("Ignoruji starší cloud snapshot po lokální změně.");
+        return;
+      }
+      return oldApply.apply(this,arguments);
+    };
+    window.tcApplyTeamSnapshot._tc355=true;
+    try{tcApplyTeamSnapshot=window.tcApplyTeamSnapshot;}catch(_){}
+  }
+
+  function redraw(){
+    try{if(typeof render==="function")render()}catch(e){}
+    try{if(typeof renderCal==="function")renderCal()}catch(e){}
+  }
+
+  // Replace saveTraining without changing UI.
+  if(typeof saveTraining==="function" && !saveTraining._tc355){
+    const oldSave=saveTraining;
+    window.saveTraining=function(){
+      if(typeof tcGuard==="function" && !tcGuard("calendar","edit"))return;
+      const before=selectedDay();
+      const r=oldSave.apply(this,arguments);
+      setTimeout(()=>hardCloudSave("saveTraining-"+(before||selectedDay()||"day")),80);
+      return r;
+    };
+    window.saveTraining._tc355=true;
+    try{saveTraining=window.saveTraining;}catch(_){}
+  }
+
+  // Replace deleteTraining with hard delete + immediate cloud save.
+  window.deleteTraining=async function(){
+    if(typeof tcGuard==="function" && !tcGuard("calendar","edit"))return;
+
+    const d=selectedDay();
+    if(!d){
+      alert("Nejdřív vyber den.");
+      return;
+    }
+
+    if(!confirm("Opravdu smazat tuto akci?"))return;
+
+    try{
+      const data=typeof trs==="function"?trs():JSON.parse(localStorage.getItem("trainings")||"{}");
+      delete data[d];
+
+      window.tcLocalCalendarMutationUntil=Date.now()+6500;
+
+      if(typeof setTrs==="function")setTrs(data);
+      else localStorage.setItem("trainings",JSON.stringify(data));
+
+      // Nemazat celou docházku, jen případnou docházku toho dne, pokud existuje.
+      try{
+        if(typeof att==="function" && typeof setAttObj==="function"){
+          const a=att();
+          if(a && typeof a==="object"){
+            delete a[d];
+            setAttObj(a);
+          }
+        }
+      }catch(_){}
+
+      try{selectedDate=null;}catch(_){}
+      window.selectedDate=null;
+
+      const editor=q("editor");
+      if(editor){
+        editor.classList.add("hidden");
+        editor.innerHTML="";
+      }
+
+      redraw();
+
+      await hardCloudSave("deleteTraining-"+d);
+
+      status("Akce smazána.");
+    }catch(e){
+      console.error("[TC 3.5.5] delete failed",e);
+      alert("Smazání se nepovedlo: "+(e.message||e));
+    }
+  };
+  try{deleteTraining=window.deleteTraining;}catch(_){}
+
+  // Rebind delete buttons after render/selectDay.
+  function bindDeleteButtons(){
+    document.querySelectorAll("button").forEach(b=>{
+      const t=(b.textContent||"").trim().toLowerCase();
+      if(t==="smazat" || t.includes("smazat trénink") || t.includes("smazat utkání")){
+        b.onclick=function(){deleteTraining()};
+      }
+    });
+  }
+
+  if(typeof render==="function" && !render._tc355bind){
+    const oldRender=render;
+    window.render=function(){
+      const r=oldRender.apply(this,arguments);
+      setTimeout(bindDeleteButtons,80);
+      return r;
+    };
+    window.render._tc355bind=true;
+    try{render=window.render;}catch(_){}
+  }
+
+  if(typeof selectDay==="function" && !selectDay._tc355bind){
+    const oldSelect=selectDay;
+    window.selectDay=function(){
+      const r=oldSelect.apply(this,arguments);
+      setTimeout(bindDeleteButtons,80);
+      return r;
+    };
+    window.selectDay._tc355bind=true;
+    try{selectDay=window.selectDay;}catch(_){}
+  }
+
+  setTimeout(bindDeleteButtons,300);
+  window.TC_BUILD="3.5.5-stable-sync-delete";
+})();
 </script>
 
 </body>
