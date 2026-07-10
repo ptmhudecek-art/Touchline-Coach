@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Touchline Coach</title>
-<!-- TC ROOT FIX 2.0.4 -->
+<!-- TC STABLE CORE 1.0 -->
 <!-- TC 3.5.4 Start na Přehled -->
 <!-- TC 3.5.2 Owner Start + Calendar Mode Fix -->
 <!-- TC 3.5.0 Clean Training Editor -->
@@ -289,6 +289,12 @@ button[onclick*="deleteVideo"],
 .dot.training{background:#22c55e!important}
 </style>
 
+
+<style>
+/* TC STABLE CORE 1.0 */
+#nav-vault,[data-tab="vault"],button[onclick*="vault"]{display:none!important}
+</style>
+
 </head>
 <body class="home-premium">
 <header>
@@ -387,7 +393,7 @@ button[onclick*="deleteVideo"],
         <div id="photoState" class="small"></div>
       </div>
       <h3>Plán tréninku</h3><p class="small">Enter přidá další blok.</p><div id="blocks"></div>
-      <div class="row"><button class="btn" onclick="addBlock()">Přidat blok</button><button class="btn" onclick="saveTraining()">Uložit trénink</button><button class="danger" onclick="deleteTraining()">Smazat trénink</button></div>
+      <div class="row"><button class="btn" onclick="addBlock()">Přidat blok</button><button class="btn" onclick="saveTraining()">Uložit</button><button class="danger" onclick="deleteTraining()">Smazat</button></div>
     </div>
   </div>
 </section>
@@ -583,9 +589,9 @@ function tcTeamLoad(base,def){tcMigrateDefaultKey(base,def);return load(tcTeamKe
 function tcTeamSave(base,value){tcMigrateDefaultKey(base,Array.isArray(value)?[]:{});save(tcTeamKey(base),value);if(tcTeamId()==="zbiroh_default")save(base,value)}
 
 
-function players(){return tcTeamLoad(LP,[])} function setPlayers(v){tcTeamSave(LP,v);if(typeof tcRefreshIdentity==="function")setTimeout(tcRefreshIdentity,50);if(typeof tcScheduleCloudSave==="function")tcScheduleCloudSave('players');if(typeof tcCloudPushNow==="function")setTimeout(()=>tcCloudPushNow('players'),700)}
-function att(){return tcTeamLoad(LA,{})} function setAttObj(v){tcTeamSave(LA,v);tcScheduleCloudSave('attendance');setTimeout(()=>tcCloudPushNow('attendance'),700)}
-function trs(){return tcTeamLoad(LT,{})} function setTrs(v){tcTeamSave(LT,v);tcScheduleCloudSave('trainings');setTimeout(()=>tcCloudPushNow('trainings'),700)}
+function players(){return tcTeamLoad(LP,[])} function setPlayers(v){tcTeamSave(LP,v);if(typeof tcRefreshIdentity==="function")setTimeout(tcRefreshIdentity,50);if(typeof tcScheduleCloudSave==="function")tcScheduleCloudSave('players')}
+function att(){return tcTeamLoad(LA,{})} function setAttObj(v){tcTeamSave(LA,v);if(typeof tcScheduleCloudSave==="function")tcScheduleCloudSave('attendance')}
+function trs(){return tcTeamLoad(LT,{})} function setTrs(v){tcTeamSave(LT,v);if(typeof tcScheduleCloudSave==="function")tcScheduleCloudSave('trainings')}
 function esc(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function pretty(s){return String(s).trim().replace(/\s+/g,' ')} function norm(s){return pretty(s).toLowerCase()}
 function iso(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
@@ -658,7 +664,29 @@ function copyCodes(){document.getElementById('copyBox').textContent=players().ma
 
 function label(v){return {yes:'Přijde',injury:'Zranění',work:'Práce/škola',other:'Ostatní',none:'Bez odpovědi'}[v||'none']}
 function cls(v){return v==='yes'?'green':v==='injury'?'red':v==='work'?'yellow':'gray'}
-function setAttendance(id,v){if(currentPlayerId&&currentPlayerId!==id)return;if(currentPlayerId){if(!tcGuard("attendance","self"))return}else{if(!tcGuard("attendance","edit"))return}let a=att();a[id]=v;setAttObj(a);render()}
+async function setAttendance(id,value){
+  if(currentPlayerId&&currentPlayerId!==id)return;
+
+  if(currentPlayerId){
+    if(!tcGuard("attendance","self"))return;
+  }else{
+    if(!tcGuard("attendance","edit"))return;
+  }
+
+  const attendance=att();
+  attendance[id]=value;
+  tcTeamSave(LA,attendance);
+
+  renderAttendance();
+  renderSummary();
+  renderPremiumPřehled();
+
+  try{
+    await tcPersistCurrentTeam("docházka");
+  }catch(error){
+    alert("Docházka je lokálně uložená, ale cloud selhal: "+(error.message||error));
+  }
+}
 
 
 /* --- TC 3.1.0 Role Based UI - Step 1 ---
@@ -838,7 +866,7 @@ function tcForceOwnerMode(){
   tcRestoreCalendarEditor();
 }
 function tcOwnerDeviceShouldStartAsOwner(){
-  return !!localStorage.getItem("tc_owner_id_v01") && !localStorage.getItem(LL) && !localStorage.getItem(LRT);
+  return tcIsOwnerDevice() && !localStorage.getItem(LL) && !localStorage.getItem(LRT);
 }
 
 
@@ -986,40 +1014,71 @@ function removeBlock(i){
   b.splice(i,1);
   renderBlocks(b);
 }
-function saveTraining(){
+async function saveTraining(){
   if(!tcGuard("calendar","edit"))return;
   if(!selectedDate)return;
-  let type=tcEventType();
-  let t=trs();
+
+  const type=tcEventType();
+  const trainings=trs();
 
   if(type==="match"){
-    t[selectedDate]={
+    trainings[selectedDate]={
       type:"match",
-      time:document.getElementById('trTime')?document.getElementById('trTime').value:'',
-      place:document.getElementById('matchPlace')?document.getElementById('matchPlace').value:'',
-      opponent:document.getElementById('matchOpponent')?document.getElementById('matchOpponent').value:'',
-      meetingTime:document.getElementById('matchMeeting')?document.getElementById('matchMeeting').value:'',
-      nomination:document.getElementById('matchNomination')?document.getElementById('matchNomination').value:'',
+      time:document.getElementById("trTime")?document.getElementById("trTime").value:"",
+      place:document.getElementById("matchPlace")?document.getElementById("matchPlace").value:"",
+      opponent:document.getElementById("matchOpponent")?document.getElementById("matchOpponent").value:"",
+      meetingTime:document.getElementById("matchMeeting")?document.getElementById("matchMeeting").value:"",
+      nomination:document.getElementById("matchNomination")?document.getElementById("matchNomination").value:"",
       blocks:[]
     };
   }else{
-    t[selectedDate]={
+    trainings[selectedDate]={
       type:"training",
-      time:document.getElementById('trTime')?document.getElementById('trTime').value:'',
-      place:document.getElementById('trPlace')?document.getElementById('trPlace').value:'',
+      time:document.getElementById("trTime")?document.getElementById("trTime").value:"",
+      place:document.getElementById("trPlace")?document.getElementById("trPlace").value:"",
       blocks:getBlocks()
     };
   }
 
-  setTrs(t);
+  tcTeamSave(LT,trainings);
   render();
   selectDay(selectedDate);
-  let msg=document.getElementById('calendarMsg')||document.getElementById('cloudStatus');
-  if(msg)msg.textContent='Uloženo.';
+
+  try{
+    await tcPersistCurrentTeam("kalendář");
+    const msg=document.getElementById("calendarMsg")||document.getElementById("cloudStatus");
+    if(msg)msg.textContent="Uloženo.";
+  }catch(error){
+    alert("Lokálně uloženo, ale cloud selhal: "+(error.message||error));
+  }
 }
-function deleteTraining(){
+async function deleteTraining(){
   if(!tcGuard("calendar","edit"))return;
-  tcDeleteCurrentEvent();
+  if(!selectedDate)return;
+  if(!confirm("Opravdu smazat tuto akci?"))return;
+
+  const deletedDate=selectedDate;
+  const trainings=trs();
+  delete trainings[deletedDate];
+
+  tcTeamSave(LT,trainings);
+
+  selectedDate=null;
+  const editor=document.getElementById("editor");
+  if(editor){
+    editor.classList.add("hidden");
+    editor.innerHTML="";
+  }
+
+  render();
+
+  try{
+    await tcPersistCurrentTeam("smazání akce "+deletedDate);
+    const msg=document.getElementById("calendarMsg")||document.getElementById("cloudStatus");
+    if(msg)msg.textContent="Akce smazána.";
+  }catch(error){
+    alert("Lokálně smazáno, ale cloud selhal: "+(error.message||error));
+  }
 }
 
 
@@ -1120,12 +1179,17 @@ function tcBuildTeamIdentity(){
 function tcSaveTeamIdentity(){let i=tcBuildTeamIdentity();save(tcTeamIdentityKey(i.teamId),i);return i}
 function tcLoadTeamIdentity(){let teamId=(typeof tcUiActiveTeamId==="function")?tcUiActiveTeamId():"zbiroh_default";let d=load(tcTeamIdentityKey(teamId),null);if(!d)d=tcSaveTeamIdentity();return d}
 function tcIdentityRoleForUser(){
-  let i=tcLoadTeamIdentity();
-  if((typeof tcOwnerId==="function")&&i.ownerId===tcOwnerId()&&!currentStaffId&&!currentPlayerId)return "owner";
-  if(currentStaffId&&i.mainCoachIds&&i.mainCoachIds.includes(currentStaffId))return "admin";
-  if(currentStaffId&&i.assistantIds&&i.assistantIds.includes(currentStaffId))return "view";
-  if(currentPlayerId&&i.playerIds&&i.playerIds.includes(currentPlayerId))return "player";
-  return "owner";
+  let identity=tcLoadTeamIdentity();
+
+  if(currentPlayerId)return "player";
+
+  if(currentStaffId){
+    if(identity.mainCoachIds&&identity.mainCoachIds.includes(currentStaffId))return "admin";
+    if(identity.mainCoachId===currentStaffId)return "admin";
+    return "view";
+  }
+
+  return tcIsOwnerDevice() ? "owner" : "guest";
 }
 function tcRefreshIdentity(){let i=tcSaveTeamIdentity();if(typeof tcCloudPushNow==="function")setTimeout(()=>tcCloudPushNow("identity"),300);return i}
 
@@ -1204,6 +1268,7 @@ function tcCan(area,action){
   let r=tcCurrentRole();
   if(r==="owner"||r==="admin")return true;
   if(r==="coach"||r==="view")return action==="view";
+  if(r==="guest")return false;
   if(r==="player"){
     if(area==="attendance"&&action==="self")return true;
     if((area==="calendar"||area==="training"||area==="home")&&action==="view")return true;
@@ -1247,7 +1312,7 @@ function tcRestoreFullOwnerUI(){
 
 function tcSwitchToOwner(){
   if(!tcIsOwnerDevice()){
-    alert("Toto zařízení není označeno jako zařízení Ownera.");
+    alert("Toto zařízení není aktivované jako Owner.");
     return;
   }
 
@@ -1257,16 +1322,14 @@ function tcSwitchToOwner(){
   localStorage.removeItem(LRT);
   localStorage.setItem(TC_GUEST_DONE_KEY,"1");
 
-  let access=document.getElementById("accessCode");
+  const access=document.getElementById("accessCode");
   if(access)access.value="";
-  let msg=document.getElementById("accessMsg");
+
+  const msg=document.getElementById("accessMsg");
   if(msg)msg.textContent="Přepnuto na OWNER.";
 
-  if(typeof tcSaveTeamIdentity==="function")tcSaveTeamIdentity();
   render();
-  if(typeof tcRestoreCalendarEditor==="function")tcRestoreCalendarEditor();
-  if(typeof tcGoOverview==="function")tcGoOverview();
-  else if(typeof tab==="function")tab("home");
+  tcGoOverview();
 }
 
 
@@ -1275,29 +1338,35 @@ function tcSwitchToOwner(){
 const TC_GUEST_DONE_KEY = "tc_guest_login_done_v01";
 
 
-/* --- TC 3.2.3 ROOT FIX: Owner device marker --- */
-const TC_OWNER_DEVICE_KEY = "tc_owner_device_v01";
+/* --- TC STABLE CORE 1.0: explicit Owner device --- */
+const TC_OWNER_DEVICE_KEY = "tc_owner_device_v02";
 
-function tcInitOwnerDeviceMarker(){
-  // Migrace: za owner zařízení označíme jen existující instalaci,
-  // která už má týmová data a není přihlášená jako hráč/RT.
+function tcInitOwnerDevice(){
   if(localStorage.getItem(TC_OWNER_DEVICE_KEY)!==null)return;
-  let hasRole=!!localStorage.getItem(LL)||!!localStorage.getItem(LRT);
-  let hasTeamData=false;
-  try{hasTeamData=players().length>0 || staff().length>0 || Object.keys(trs()).length>0}catch(_){}
-  if(!hasRole && hasTeamData)localStorage.setItem(TC_OWNER_DEVICE_KEY,"1");
-  else localStorage.setItem(TC_OWNER_DEVICE_KEY,"0");
+
+  const roleStored=!!localStorage.getItem(LL)||!!localStorage.getItem(LRT);
+  let hasExistingTeam=false;
+  try{
+    hasExistingTeam=players().length>0 || staff().length>0 || Object.keys(trs()).length>0;
+  }catch(_){}
+
+  // Migrace: pouze stávající hlavní instalace bez role a s týmovými daty.
+  localStorage.setItem(TC_OWNER_DEVICE_KEY,(!roleStored&&hasExistingTeam)?"1":"0");
 }
 
 function tcIsOwnerDevice(){
   return localStorage.getItem(TC_OWNER_DEVICE_KEY)==="1";
 }
 
-function tcApplyOwnerSwitchVisibility(){
-  let allow=tcIsOwnerDevice() && tcCurrentRole()!=="owner";
-  document.querySelectorAll('button[onclick*="tcSwitchToOwner"]').forEach(b=>{
-    b.classList.toggle("hidden",!allow);
-    b.style.display=allow?"":"none";
+function tcSetOwnerDevice(value){
+  localStorage.setItem(TC_OWNER_DEVICE_KEY,value?"1":"0");
+}
+
+function tcUpdateOwnerButtons(){
+  const show=tcIsOwnerDevice() && tcCurrentRole()!=="owner";
+  document.querySelectorAll('button[onclick*="tcSwitchToOwner"]').forEach(button=>{
+    button.classList.toggle("hidden",!show);
+    button.style.display=show?"":"none";
   });
 }
 
@@ -1343,6 +1412,7 @@ async function tcGuestLoadPublicTeam(){
   let cfg=await window.tcCloudLoadPublicClub(TC_PUBLIC_CLUB_ID);
   let snap=await window.tcCloudLoadSnapshot(cfg.ownerId,cfg.teamId);
   localStorage.setItem("tc_owner_id_v01",cfg.ownerId);
+  tcSetOwnerDevice(false);
   if(typeof tcUiSelectTeam==="function"){
     // tým nemusí existovat v lokálním seznamu, proto ho doplníme
     let teams=tcUiTeams();
@@ -1366,7 +1436,7 @@ async function guestLoginCloudFirst(){
   function tryLocal(){
     let st=staff().find(s=>String(s.code||"").toUpperCase()===code);
     if(st){
-      currentStaffId=st.id;localStorage.setItem(LRT,st.id);localStorage.setItem(TC_OWNER_DEVICE_KEY,"0");
+      currentStaffId=st.id;localStorage.setItem(LRT,st.id);tcSetOwnerDevice(false);
       currentPlayerId=null;localStorage.removeItem(LL);
       localStorage.setItem(TC_GUEST_DONE_KEY,"1");
       if(msg)msg.textContent="Přihlášeno: "+st.name;
@@ -1374,7 +1444,7 @@ async function guestLoginCloudFirst(){
     }
     let p=players().find(x=>String(x.code||"").toUpperCase()===code);
     if(p){
-      currentPlayerId=p.id;localStorage.setItem(LL,p.id);localStorage.setItem(TC_OWNER_DEVICE_KEY,"0");
+      currentPlayerId=p.id;localStorage.setItem(LL,p.id);tcSetOwnerDevice(false);
       currentStaffId=null;localStorage.removeItem(LRT);
       localStorage.setItem(TC_GUEST_DONE_KEY,"1");
       if(msg)msg.textContent="Přihlášeno: "+p.name;
@@ -1559,7 +1629,7 @@ function accessLogin(){
 
   let st=staff().find(s=>String(s.code||'').toUpperCase()===code);
   if(st){
-    currentStaffId=st.id;localStorage.setItem(LRT,st.id);
+    currentStaffId=st.id;localStorage.setItem(LRT,st.id);tcSetOwnerDevice(false);
     currentPlayerId=null;localStorage.removeItem(LL);
     localStorage.setItem(TC_GUEST_DONE_KEY,"1");
     if(msg)msg.textContent='Přihlášen RT: '+st.name+' • '+roleText(st.role);
@@ -1568,7 +1638,7 @@ function accessLogin(){
 
   let p=players().find(x=>String(x.code||'').toUpperCase()===code);
   if(p){
-    currentPlayerId=p.id;localStorage.setItem(LL,p.id);
+    currentPlayerId=p.id;localStorage.setItem(LL,p.id);tcSetOwnerDevice(false);
     currentStaffId=null;localStorage.removeItem(LRT);
     localStorage.setItem(TC_GUEST_DONE_KEY,"1");
     if(msg)msg.textContent='Přihlášena hráčka: '+p.name;
@@ -1591,7 +1661,7 @@ function accessLogout(){
   render();
 }
 
-function playerLogin(){let name=norm(document.getElementById('loginName').value),sec=document.getElementById('loginSecret').value.trim(),p=players().find(x=>norm(x.name)===name);if(!p){msg('Hráč nenalezen.');return}if(p.pin){if(sec!==p.pin){msg('Špatný PIN.');return}}else{if(sec.toUpperCase()!==String(p.code).toUpperCase()){msg('Špatný kód.');return}}currentPlayerId=p.id;if(document.getElementById('stay').checked)localStorage.setItem(LL,p.id);else localStorage.removeItem(LL);msg('Přihlášeno.');render()}
+function playerLogin(){let name=norm(document.getElementById('loginName').value),sec=document.getElementById('loginSecret').value.trim(),p=players().find(x=>norm(x.name)===name);if(!p){msg('Hráč nenalezen.');return}if(p.pin){if(sec!==p.pin){msg('Špatný PIN.');return}}else{if(sec.toUpperCase()!==String(p.code).toUpperCase()){msg('Špatný kód.');return}}currentPlayerId=p.id;tcSetOwnerDevice(false);if(document.getElementById('stay').checked)localStorage.setItem(LL,p.id);else localStorage.removeItem(LL);msg('Přihlášeno.');render()}
 function msg(t){document.getElementById('loginMsg').textContent=t}
 function playerLogout(){currentPlayerId=null;localStorage.removeItem(LL);document.getElementById('playerPanel').classList.add('hidden');document.getElementById('pinSetup').classList.add('hidden');msg('Odhlášeno.')}
 function savePin(){let a=document.getElementById('pin1').value.trim(),b=document.getElementById('pin2').value.trim();if(!/^\d{4}$/.test(a))return msg('PIN musí mít 4 čísla.');if(a!==b)return msg('PINy nesedí.');let p=players(),x=p.find(y=>y.id===currentPlayerId);if(x){x.pin=a;setPlayers(p);msg('PIN uložen.');render()}}
@@ -1751,7 +1821,7 @@ function renderExercises(){
 }
 
 function staff(){let s=tcTeamLoad(LS,null);if(!s){s=tcTeamId()==="zbiroh_default"?[{id:"pavel",name:"Pavel",role:"admin",code:tcAccessCode("coach")},{id:"kuba",name:"Kuba",role:"coach",code:tcAccessCode("coach")},{id:"rt",name:"Realizák",role:"view",code:tcAccessCode("coach")}]:[];tcTeamSave(LS,s)}let changed=false;s.forEach(x=>{if(!x.code){x.code=tcAccessCode("coach");changed=true}});if(changed)tcTeamSave(LS,s);return s}
-function setStaff(s){tcTeamSave(LS,s);if(typeof tcRefreshIdentity==="function")setTimeout(tcRefreshIdentity,50);if(typeof tcScheduleCloudSave==="function")tcScheduleCloudSave('staff');if(typeof tcCloudPushNow==="function")setTimeout(()=>tcCloudPushNow('staff'),700)}
+function setStaff(s){tcTeamSave(LS,s);if(typeof tcRefreshIdentity==="function")setTimeout(tcRefreshIdentity,50);if(typeof tcScheduleCloudSave==="function")tcScheduleCloudSave('staff')}
 function roleText(r){return r==="admin"?"Hlavní trenér":r==="coach"?"Asistent trenéra":"RT - náhled"}
 function addStaff(){if(!tcGuard("staff","edit"))return;let n=pretty(document.getElementById("staffName").value);if(!n)return;let r=document.getElementById("staffRole").value;let s=staff();s.push(tcWithIdentity({id:Date.now()+"_"+Math.random().toString(16).slice(2),name:n,role:r,code:tcAccessCode(r==="admin"?"admin":"coach")}));setStaff(s);document.getElementById("staffName").value="";render();setTimeout(()=>tcCloudPushNow('staff'),300)}
 function deleteStaff(i){if(!tcGuard("staff","edit"))return;let s=staff();s.splice(i,1);setStaff(s);renderStaff()}
@@ -1810,6 +1880,7 @@ function staffLogin(){
   }
   currentStaffId=x.id;
   localStorage.setItem(LRT,x.id);
+  tcSetOwnerDevice(false);
   if(msg)msg.textContent="Přihlášeno.";
   renderStaffLoginBox();
 }
@@ -1893,15 +1964,22 @@ function tcSetOwnerIdPrompt(){
   let current=(typeof tcOwnerId==="function")?tcOwnerId():localStorage.getItem("tc_owner_id_v01");
   let id=prompt("Vlož Owner ID z hlavního zařízení:",current||"");
   if(!id)return;
+
   id=String(id).trim();
   if(!/^own_[A-Z0-9]{8}$/.test(id)){
     alert("Owner ID má tvar například own_ABCDEFGH");
     return;
   }
+
   localStorage.setItem("tc_owner_id_v01",id);
-  let e=document.getElementById("cloudStatus");
-  if(e)e.textContent="Owner ID nastaven: "+id+". Teď zkus Načíst tým z cloudu.";
-  if(typeof tcLiveSyncEnabled==='function'&&tcLiveSyncEnabled())setTimeout(tcStartLiveSync,100);
+  tcSetOwnerDevice(true);
+
+  let status=document.getElementById("cloudStatus");
+  if(status)status.textContent="Owner zařízení aktivováno: "+id;
+
+  if(typeof tcLiveSyncEnabled==="function"&&tcLiveSyncEnabled()){
+    setTimeout(tcStartLiveSync,100);
+  }
 }
 
 
@@ -1971,7 +2049,7 @@ let tcCloudApplyingRemote = false;
 let tcLastAppliedCloudStamp = "";
 
 function tcLiveSyncEnabled(){
-  return localStorage.getItem(TC_LIVE_SYNC_KEY) === "1";
+  return localStorage.getItem(TC_LIVE_SYNC_KEY)!=="0";
 }
 
 function tcSetLiveSync(v){
@@ -2054,6 +2132,22 @@ function tcCloudPushNow(reason){
 }
 
 
+
+async function tcPersistCurrentTeam(reason){
+  if(!window.tcCloud||!window.tcCloud.ready||typeof window.tcCloudSaveSnapshot!=="function"){
+    if(typeof tcScheduleCloudSave==="function")tcScheduleCloudSave(reason||"změna");
+    return false;
+  }
+
+  const snapshot=tcBuildTeamSnapshot();
+  await window.tcCloudSaveSnapshot(snapshot);
+
+  const status=document.getElementById("cloudStatus");
+  if(status)status.textContent="Cloud uloženo: "+(reason||"změna");
+  return true;
+}
+
+
 function tcBuildTeamSnapshot(){
   let team = (typeof tcUiActiveTeam === "function") ? tcUiActiveTeam() : {id:"zbiroh_default",name:"TJ Město Zbiroh"};
   return {
@@ -2097,23 +2191,27 @@ function tcApplyTeamSnapshot(snapshot){
     throw new Error("Neplatný snapshot.");
   }
 
-  // Zachovat aktuální přihlášení. Cloudová aktualizace nesmí hráče/RT odhlásit.
-  let keepPlayerId=currentPlayerId||localStorage.getItem(LL)||null;
-  let keepStaffId=currentStaffId||localStorage.getItem(LRT)||null;
+  const keepPlayer=currentPlayerId||localStorage.getItem(LL)||null;
+  const keepStaff=currentStaffId||localStorage.getItem(LRT)||null;
+  const data=snapshot.data;
 
-  let d=snapshot.data;
-  if(typeof setPlayers==="function")setPlayers(d.members||[]);
-  if(typeof setStaff==="function")setStaff(d.staff||[]);
-  if(typeof setTrs==="function")setTrs(d.trainings||{});
-  if(typeof setAttObj==="function")setAttObj(d.attendance||{});
-  if(typeof setDrawers==="function")setDrawers(d.vaultDrawers||[]);
-  if(typeof setExercises==="function")setExercises(d.vaultExercises||{});
+  tcTeamSave(LP,data.members||[]);
+  tcTeamSave(LS,data.staff||[]);
+  tcTeamSave(LT,data.trainings||{});
+  tcTeamSave(LA,data.attendance||{});
 
-  let pExists=keepPlayerId && (d.members||[]).some(x=>x.id===keepPlayerId);
-  let sExists=keepStaffId && (d.staff||[]).some(x=>x.id===keepStaffId);
+  if(typeof setDrawers==="function" && typeof drawers==="function"){
+    tcTeamSave(LD,data.vaultDrawers||[]);
+  }
+  if(typeof setExercises==="function" && typeof exercises==="function"){
+    tcTeamSave(LE,data.vaultExercises||{});
+  }
 
-  currentPlayerId=pExists?keepPlayerId:null;
-  currentStaffId=sExists?keepStaffId:null;
+  const playerExists=keepPlayer&&(data.members||[]).some(item=>item.id===keepPlayer);
+  const staffExists=keepStaff&&(data.staff||[]).some(item=>item.id===keepStaff);
+
+  currentPlayerId=playerExists?keepPlayer:null;
+  currentStaffId=staffExists?keepStaff:null;
 
   if(currentPlayerId)localStorage.setItem(LL,currentPlayerId);
   else localStorage.removeItem(LL);
@@ -2146,7 +2244,7 @@ function tcLoadTeamFromCloud(){
 
 
 function restore(){setTimeout(tcRenderCloudAutoSaveState,0);if(typeof tcOwnerId==='function')tcOwnerId();tcMigrateDefaultKey(LP,[]);tcMigrateDefaultKey(LA,{});tcMigrateDefaultKey(LT,{});tcMigrateDefaultKey(LS,null);tcMigrateDefaultKey(LD,null);tcMigrateDefaultKey(LE,{});let id=localStorage.getItem(LL);if(id&&players().find(p=>p.id===id))currentPlayerId=id;let sid=localStorage.getItem(LRT);if(sid&&staff().find(s=>s.id===sid))currentStaffId=sid
-  tcInitOwnerDeviceMarker();
+  tcInitOwnerDevice();
 }
 
 function tcApplyRoleBasedUI(){
@@ -2180,7 +2278,7 @@ function tcApplyRoleBasedUI(){
     b.classList.toggle("hidden",!tcIsAdminLike()&&!viewAllowed);
   });
 
-  tcApplyOwnerSwitchVisibility();
+  tcUpdateOwnerButtons();
 }
 
 
@@ -2305,20 +2403,19 @@ window.tcCloudSaveSnapshot = async function(snapshot){
   if(!snapshot || !snapshot.ownerId || !snapshot.teamId){
     throw new Error("Snapshot nemá ownerId nebo teamId.");
   }
-  const id = snapshot.ownerId + "_" + snapshot.teamId;
-  const ref = doc(tcFirestore, "teamSnapshots", id);
 
-  // DŮLEŽITÉ: celý snapshot nahrazujeme.
-  // merge:true u vnořeného data.trainings ponechával smazané dny v cloudu,
-  // takže se po Live Sync vracely jako "zombie" tréninky.
-  await setDoc(ref, {
+  const id=snapshot.ownerId+"_"+snapshot.teamId;
+  const ref=doc(tcFirestore,"teamSnapshots",id);
+
+  // Úplná náhrada dokumentu. Smazané tréninky nesmí zůstat ve vnořené mapě.
+  await setDoc(ref,{
     ...snapshot,
-    cloudVersion: "TC 2.0.4 Full Snapshot Replace",
-    cloudUpdated: serverTimestamp()
+    cloudVersion:"TC STABLE CORE 1.0",
+    cloudUpdated:serverTimestamp()
   });
 
-  const snap = await getDoc(ref);
-  return snap.exists();
+  const saved=await getDoc(ref);
+  return saved.exists();
 };
 
 window.tcCloudLoadSnapshot = async function(ownerId, teamId){
@@ -2373,25 +2470,24 @@ window.tcCloudWatchSnapshot = function(ownerId, teamId, callback){
 
 console.log("TC Cloud ready:", firebaseConfig.projectId);
 
-// Po načtení Firebase automaticky obnovit Live Sync.
-// Dříve zůstal přepínač ON, ale listener se po restartu nespustil.
 setTimeout(()=>{
   try{
-    if(typeof tcRenderCloudAutoSaveState==="function")tcRenderCloudAutoSaveState();
-    if(typeof tcRenderLiveSyncState==="function")tcRenderLiveSyncState();
-    if(typeof tcLiveSyncEnabled==="function" && tcLiveSyncEnabled()){
-      tcStartLiveSync();
-    }
-  }catch(err){
-    console.error("TC automatic Live Sync start failed:",err);
+    localStorage.setItem(TC_LIVE_SYNC_KEY,"1");
+    tcRenderCloudAutoSaveState();
+    tcRenderLiveSyncState();
+    tcStartLiveSync();
+  }catch(error){
+    console.error("Automatické spuštění Live Sync selhalo:",error);
   }
-},150);
+},200);
 
 document.addEventListener("visibilitychange",()=>{
   if(!document.hidden){
     try{
-      if(typeof tcLiveSyncEnabled==="function" && tcLiveSyncEnabled())tcStartLiveSync();
-    }catch(err){console.error(err)}
+      tcStartLiveSync();
+    }catch(error){
+      console.error(error);
+    }
   }
 });
 
