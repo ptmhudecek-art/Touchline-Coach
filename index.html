@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Touchline Coach</title>
+<!-- TC BOD 0.2 LOCAL PROFILE PHOTO -->
 <!-- TC BOD 0.1 OVERVIEW DAY DETAIL -->
 <!-- TC STABLE CORE 1.0 -->
 <!-- TC 3.5.4 Start na Přehled -->
@@ -1500,6 +1501,8 @@ function tcGoOverview(){
   let navHome=document.getElementById("nav-home");
   if(navHome)navHome.classList.add("active");
   if(typeof tcApplyRoleBasedUI==="function")setTimeout(tcApplyRoleBasedUI,50);
+
+  setTimeout(setupCoachPhoto,50);
 }
 
 
@@ -2023,9 +2026,101 @@ function renderPremiumPřehled(){
   [['premiumYes',s.yes],['premiumExc',exc],['premiumNone',s.none]].forEach(x=>{let e=document.getElementById(x[0]);if(e)e.textContent=x[1]});
   renderMiniCal();
 }
-function pickCoachPhoto(){let inp=document.getElementById('coachPhotoInput');if(inp)inp.click();}
-function loadCoachPhoto(){let data=localStorage.getItem('tc_coach_photo_v01'),img=document.getElementById('coachPhotoImg'),fb=document.getElementById('coachPhotoFallback');if(!img||!fb)return;if(data){img.src=data;img.classList.remove('hidden');fb.classList.add('hidden')}else{img.classList.add('hidden');fb.classList.remove('hidden')}}
-function setupCoachPhoto(){let inp=document.getElementById('coachPhotoInput');if(!inp||inp.dataset.bound==='1')return;inp.dataset.bound='1';inp.addEventListener('change',function(){let f=inp.files&&inp.files[0];if(!f)return;let r=new FileReader();r.onload=function(){localStorage.setItem('tc_coach_photo_v01',r.result);loadCoachPhoto()};r.readAsDataURL(f)});loadCoachPhoto();}
+function pickCoachPhoto(){
+  const input=document.getElementById("coachPhotoInput");
+  if(!input)return;
+  input.value="";
+  input.click();
+}
+function loadCoachPhoto(){
+  const data=localStorage.getItem("tc_coach_photo_v02");
+  const img=document.getElementById("coachPhotoImg");
+  const fallback=document.getElementById("coachPhotoFallback");
+  if(!img||!fallback)return;
+
+  if(data){
+    img.onload=function(){
+      img.classList.remove("hidden");
+      fallback.classList.add("hidden");
+    };
+    img.onerror=function(){
+      localStorage.removeItem("tc_coach_photo_v02");
+      img.classList.add("hidden");
+      fallback.classList.remove("hidden");
+    };
+    img.src=data;
+  }else{
+    img.removeAttribute("src");
+    img.classList.add("hidden");
+    fallback.classList.remove("hidden");
+  }
+}
+function setupCoachPhoto(){
+  const input=document.getElementById("coachPhotoInput");
+  if(!input)return;
+
+  if(input.dataset.bound!=="1"){
+    input.dataset.bound="1";
+
+    input.addEventListener("change",function(){
+      const file=input.files&&input.files[0];
+      if(!file)return;
+
+      if(!file.type.startsWith("image/")){
+        alert("Vyber obrázek.");
+        return;
+      }
+
+      const reader=new FileReader();
+
+      reader.onload=function(){
+        const source=new Image();
+
+        source.onload=function(){
+          const size=200;
+          const canvas=document.createElement("canvas");
+          canvas.width=size;
+          canvas.height=size;
+
+          const ctx=canvas.getContext("2d");
+          if(!ctx){
+            alert("Fotku se nepodařilo zpracovat.");
+            return;
+          }
+
+          const crop=Math.min(source.width,source.height);
+          const sx=(source.width-crop)/2;
+          const sy=(source.height-crop)/2;
+
+          ctx.drawImage(source,sx,sy,crop,crop,0,0,size,size);
+
+          try{
+            const data=canvas.toDataURL("image/jpeg",0.82);
+            localStorage.setItem("tc_coach_photo_v02",data);
+            loadCoachPhoto();
+          }catch(error){
+            console.error(error);
+            alert("Fotku se nepodařilo uložit.");
+          }
+        };
+
+        source.onerror=function(){
+          alert("Fotku se nepodařilo načíst.");
+        };
+
+        source.src=String(reader.result||"");
+      };
+
+      reader.onerror=function(){
+        alert("Fotku se nepodařilo otevřít.");
+      };
+
+      reader.readAsDataURL(file);
+    });
+  }
+
+  loadCoachPhoto();
+}
 
 
 
@@ -2377,6 +2472,8 @@ function render(){
   tcCaptureCalendarEditor();
 
   setTimeout(tcEnhanceCalendarColors,80);setTimeout(tcNormalizeEditorButtons,90);
+
+  setTimeout(setupCoachPhoto,50);
 }
 restore();render();tcPublicStart();
 setTimeout(tcRemoveMediaControlsHard,500);
@@ -2395,6 +2492,16 @@ setTimeout(()=>{
 },100);
 
 setTimeout(tcHideTrezorNav,300);
+
+/* --- TC BOD 0.2: lokální profilová fotka --- */
+document.addEventListener("DOMContentLoaded",()=>{
+  setTimeout(setupCoachPhoto,100);
+});
+
+window.addEventListener("pageshow",()=>{
+  setTimeout(setupCoachPhoto,100);
+});
+
 </script>
 
 <script>
