@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Touchline Coach</title>
+<!-- TC BOD 0.1 OVERVIEW DAY DETAIL -->
 <!-- TC STABLE CORE 1.0 -->
 <!-- TC 3.5.4 Start na Přehled -->
 <!-- TC 3.5.2 Owner Start + Calendar Mode Fix -->
@@ -293,6 +294,22 @@ button[onclick*="deleteVideo"],
 <style>
 /* TC STABLE CORE 1.0 */
 #nav-vault,[data-tab="vault"],button[onclick*="vault"]{display:none!important}
+</style>
+
+
+<style>
+/* TC BOD 0.1 - klik na den z Přehledu */
+#miniCal .md.tcMiniDayLink{
+  cursor:pointer;
+  border:0;
+  padding:0;
+  margin:0;
+  background:transparent;
+  font:inherit;
+  color:inherit;
+  width:100%;
+}
+#miniCal .md.tcMiniDayLink:active{transform:scale(.96)}
 </style>
 
 </head>
@@ -1898,14 +1915,73 @@ function renderStaffLoginBox(){
   box.innerHTML=x?`Přihlášen: <b>${esc(x.name)}</b> • ${roleText(x.role)}`:"Nikdo z RT není přihlášen.";
 }
 
+
+/* --- TC BOD 0.1: detail dne z Přehledu --- */
+function tcOpenDayFromOverview(date){
+  if(!date)return;
+
+  const parts=date.split("-");
+  if(parts.length===3){
+    viewDate=new Date(Number(parts[0]),Number(parts[1])-1,1);
+  }
+
+  tab("calendar");
+
+  setTimeout(()=>{
+    if(typeof renderCal==="function")renderCal();
+    if(typeof selectDay==="function")selectDay(date);
+
+    setTimeout(()=>{
+      const detail=document.getElementById("selTitle")||document.getElementById("editor");
+      if(detail&&typeof detail.scrollIntoView==="function"){
+        detail.scrollIntoView({behavior:"smooth",block:"start"});
+      }
+    },80);
+  },80);
+}
+
+
 function renderMiniCal(){
-  let grid=document.getElementById('miniCal'); if(!grid)return; grid.innerHTML='';
-  let months=['leden','únor','březen','duben','květen','červen','červenec','srpen','září','říjen','listopad','prosinec'];
-  let mt=document.getElementById('miniMonthTitle'); if(mt)mt.textContent=(months[viewDate.getMonth()]+' '+viewDate.getFullYear()).toUpperCase();
-  ['PO','ÚT','ST','ČT','PÁ','SO','NE'].forEach(d=>grid.innerHTML+='<div class="mh">'+d+'</div>');
-  let y=viewDate.getFullYear(),m=viewDate.getMonth(),first=new Date(y,m,1),start=(first.getDay()+6)%7,days=new Date(y,m+1,0).getDate(),t=trs(),today=iso(new Date()),prevDays=new Date(y,m,0).getDate();
-  for(let i=0;i<start;i++)grid.innerHTML+='<div class="md mutedDay">'+(prevDays-start+i+1)+'</div>';
-  for(let d=1;d<=days;d++){let date=iso(new Date(y,m,d)),has=!!t[date],isToday=date===today;grid.innerHTML+='<div class="md">'+(isToday?'<span class="todayMini">'+d+'</span>':d)+(has?'<span class="miniDot"></span>':'')+'</div>';}
+  let grid=document.getElementById("miniCal");
+  if(!grid)return;
+
+  grid.innerHTML="";
+  let months=["leden","únor","březen","duben","květen","červen","červenec","srpen","září","říjen","listopad","prosinec"];
+  let mt=document.getElementById("miniMonthTitle");
+  if(mt)mt.textContent=(months[viewDate.getMonth()]+" "+viewDate.getFullYear()).toUpperCase();
+
+  ["PO","ÚT","ST","ČT","PÁ","SO","NE"].forEach(d=>{
+    grid.innerHTML+='<div class="mh">'+d+'</div>';
+  });
+
+  let y=viewDate.getFullYear();
+  let m=viewDate.getMonth();
+  let first=new Date(y,m,1);
+  let start=(first.getDay()+6)%7;
+  let days=new Date(y,m+1,0).getDate();
+  let trainings=trs();
+  let today=iso(new Date());
+  let prevDays=new Date(y,m,0).getDate();
+
+  for(let i=0;i<start;i++){
+    grid.innerHTML+='<div class="md mutedDay">'+(prevDays-start+i+1)+'</div>';
+  }
+
+  for(let d=1;d<=days;d++){
+    let date=iso(new Date(y,m,d));
+    let has=!!trainings[date];
+    let isToday=date===today;
+
+    grid.innerHTML+=`
+      <button
+        type="button"
+        class="md tcMiniDayLink"
+        onclick="tcOpenDayFromOverview('${date}')"
+        aria-label="Otevřít den ${d}. ${m+1}. ${y}">
+        ${isToday?'<span class="todayMini">'+d+'</span>':d}
+        ${has?'<span class="miniDot"></span>':''}
+      </button>`;
+  }
 }
 function renderPremiumPřehled(){
   let t=trs(),key=nearestTrainingKey();
