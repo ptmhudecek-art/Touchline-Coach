@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Touchline Coach</title>
+<!-- TC BOD 0.3 OWNER ACTIVATION -->
 <!-- TC BOD 0.2 LOCAL PROFILE PHOTO -->
 <!-- TC BOD 0.1 OVERVIEW DAY DETAIL -->
 <!-- TC STABLE CORE 1.0 -->
@@ -630,12 +631,7 @@ function tcRandCode(len){
   return s;
 }
 function tcOwnerId(){
-  let id=localStorage.getItem(TC_OWNER_ID_KEY);
-  if(!id){
-    id="own_"+tcRandCode(8);
-    localStorage.setItem(TC_OWNER_ID_KEY,id);
-  }
-  return id;
+  return localStorage.getItem(TC_OWNER_ID_KEY)||localStorage.getItem("tc_owner_id_v01")||"";
 }
 function tcActiveTeamId(){
   return (typeof tcUiActiveTeamId==="function") ? tcUiActiveTeamId() : "zbiroh_default";
@@ -1334,20 +1330,24 @@ function tcSwitchToOwner(){
     return;
   }
 
+  localStorage.setItem(TC_OWNER_ID_KEY,TC_FIXED_OWNER_ID);
+  localStorage.setItem("tc_owner_id_v01",TC_FIXED_OWNER_ID);
+
   currentPlayerId=null;
   currentStaffId=null;
   localStorage.removeItem(LL);
   localStorage.removeItem(LRT);
   localStorage.setItem(TC_GUEST_DONE_KEY,"1");
 
-  const access=document.getElementById("accessCode");
+  let access=document.getElementById("accessCode");
   if(access)access.value="";
 
-  const msg=document.getElementById("accessMsg");
+  let msg=document.getElementById("accessMsg");
   if(msg)msg.textContent="Přepnuto na OWNER.";
 
   render();
   tcGoOverview();
+  if(typeof tcStartLiveSync==="function")setTimeout(tcStartLiveSync,100);
 }
 
 
@@ -1359,17 +1359,62 @@ const TC_GUEST_DONE_KEY = "tc_guest_login_done_v01";
 /* --- TC STABLE CORE 1.0: explicit Owner device --- */
 const TC_OWNER_DEVICE_KEY = "tc_owner_device_v02";
 
-function tcInitOwnerDevice(){
-  if(localStorage.getItem(TC_OWNER_DEVICE_KEY)!==null)return;
 
-  const roleStored=!!localStorage.getItem(LL)||!!localStorage.getItem(LRT);
-  let hasExistingTeam=false;
+/* --- TC BOD 0.3: Owner Activation --- */
+const TC_FIXED_OWNER_ID = "own_W43KTBG4";
+const TC_OWNER_ACTIVATION_CODE = "TC-OWNER-W43KTBG4";
+const TC_FIXED_TEAM_ID = "zbiroh_default";
+
+async function tcActivateOwnerDevice(code,msgElement){
+  const normalized=String(code||"").trim().toUpperCase();
+  if(normalized!==TC_OWNER_ACTIVATION_CODE)return false;
+
+  localStorage.setItem(TC_OWNER_ID_KEY,TC_FIXED_OWNER_ID);
+  localStorage.setItem("tc_owner_id_v01",TC_FIXED_OWNER_ID);
+  localStorage.setItem(TC_OWNER_DEVICE_KEY,"1");
+  localStorage.setItem(TC_GUEST_DONE_KEY,"1");
+
+  currentPlayerId=null;
+  currentStaffId=null;
+  localStorage.removeItem(LL);
+  localStorage.removeItem(LRT);
+
+  if(typeof tcUiTeams==="function"){
+    let teams=tcUiTeams();
+    if(!teams.find(t=>t.id===TC_FIXED_TEAM_ID)){
+      teams.push({
+        id:TC_FIXED_TEAM_ID,
+        teamId:TC_FIXED_TEAM_ID,
+        ownerId:TC_FIXED_OWNER_ID,
+        name:"TJ Město Zbiroh"
+      });
+      save(TC_UI_TEAMS_KEY,teams);
+    }
+    localStorage.setItem(TC_UI_ACTIVE_TEAM_KEY,TC_FIXED_TEAM_ID);
+  }
+
   try{
-    hasExistingTeam=players().length>0 || staff().length>0 || Object.keys(trs()).length>0;
-  }catch(_){}
+    if(window.tcCloud&&window.tcCloud.ready&&typeof window.tcCloudLoadSnapshot==="function"){
+      const snapshot=await window.tcCloudLoadSnapshot(TC_FIXED_OWNER_ID,TC_FIXED_TEAM_ID);
+      if(snapshot&&snapshot.data)tcApplyTeamSnapshot(snapshot);
+    }
+  }catch(error){
+    console.error("Owner activation cloud load failed:",error);
+  }
 
-  // Migrace: pouze stávající hlavní instalace bez role a s týmovými daty.
-  localStorage.setItem(TC_OWNER_DEVICE_KEY,(!roleStored&&hasExistingTeam)?"1":"0");
+  if(typeof tcStartLiveSync==="function")setTimeout(tcStartLiveSync,100);
+  if(typeof render==="function")render();
+  if(typeof tcGoOverview==="function")tcGoOverview();
+
+  if(msgElement)msgElement.textContent="Owner zařízení aktivováno.";
+  return true;
+}
+
+
+function tcInitOwnerDevice(){
+  if(localStorage.getItem(TC_OWNER_DEVICE_KEY)===null){
+    localStorage.setItem(TC_OWNER_DEVICE_KEY,"0");
+  }
 }
 
 function tcIsOwnerDevice(){
@@ -1430,6 +1475,7 @@ async function tcGuestLoadPublicTeam(){
   let cfg=await window.tcCloudLoadPublicClub(TC_PUBLIC_CLUB_ID);
   let snap=await window.tcCloudLoadSnapshot(cfg.ownerId,cfg.teamId);
   localStorage.setItem("tc_owner_id_v01",cfg.ownerId);
+  localStorage.setItem(TC_OWNER_DEVICE_KEY,"0");
   tcSetOwnerDevice(false);
   if(typeof tcUiSelectTeam==="function"){
     // tým nemusí existovat v lokálním seznamu, proto ho doplníme
@@ -1450,11 +1496,12 @@ async function guestLoginCloudFirst(){
   let code=(inp&&inp.value?inp.value:"").trim().toUpperCase();
   let msg=document.getElementById("guestMsg");
   if(!code){if(msg)msg.textContent="Zadej kód.";return;}
+  if(await tcActivateOwnerDevice(code,msg))return;
 
   function tryLocal(){
     let st=staff().find(s=>String(s.code||"").toUpperCase()===code);
     if(st){
-      currentStaffId=st.id;localStorage.setItem(LRT,st.id);tcSetOwnerDevice(false);
+      currentStaffId=st.id;localStorage.setItem(LRT,st.id);
       currentPlayerId=null;localStorage.removeItem(LL);
       localStorage.setItem(TC_GUEST_DONE_KEY,"1");
       if(msg)msg.textContent="Přihlášeno: "+st.name;
@@ -1462,7 +1509,7 @@ async function guestLoginCloudFirst(){
     }
     let p=players().find(x=>String(x.code||"").toUpperCase()===code);
     if(p){
-      currentPlayerId=p.id;localStorage.setItem(LL,p.id);tcSetOwnerDevice(false);
+      currentPlayerId=p.id;localStorage.setItem(LL,p.id);
       currentStaffId=null;localStorage.removeItem(LRT);
       localStorage.setItem(TC_GUEST_DONE_KEY,"1");
       if(msg)msg.textContent="Přihlášeno: "+p.name;
@@ -1642,30 +1689,40 @@ function tcPublicStart(){
 }
 
 
-function accessLogin(){
-  let code=(document.getElementById('accessCode').value||'').trim().toUpperCase();
-  let msg=document.getElementById('accessMsg');
-  if(!code){if(msg)msg.textContent='Zadej kód.';return;}
+async function accessLogin(){
+  let code=(document.getElementById("accessCode").value||"").trim().toUpperCase();
+  let msg=document.getElementById("accessMsg");
+  if(!code){if(msg)msg.textContent="Zadej kód.";return;}
 
-  let st=staff().find(s=>String(s.code||'').toUpperCase()===code);
+  if(await tcActivateOwnerDevice(code,msg))return;
+
+  let st=staff().find(s=>String(s.code||"").toUpperCase()===code);
   if(st){
-    currentStaffId=st.id;localStorage.setItem(LRT,st.id);tcSetOwnerDevice(false);
-    currentPlayerId=null;localStorage.removeItem(LL);
+    currentStaffId=st.id;
+    localStorage.setItem(LRT,st.id);
+    currentPlayerId=null;
+    localStorage.removeItem(LL);
     localStorage.setItem(TC_GUEST_DONE_KEY,"1");
-    if(msg)msg.textContent='Přihlášen RT: '+st.name+' • '+roleText(st.role);
-    render();tcGoOverview();return;
+    if(msg)msg.textContent="Přihlášen RT: "+st.name+" • "+roleText(st.role);
+    render();
+    tcGoOverview();
+    return;
   }
 
-  let p=players().find(x=>String(x.code||'').toUpperCase()===code);
+  let p=players().find(x=>String(x.code||"").toUpperCase()===code);
   if(p){
-    currentPlayerId=p.id;localStorage.setItem(LL,p.id);tcSetOwnerDevice(false);
-    currentStaffId=null;localStorage.removeItem(LRT);
+    currentPlayerId=p.id;
+    localStorage.setItem(LL,p.id);
+    currentStaffId=null;
+    localStorage.removeItem(LRT);
     localStorage.setItem(TC_GUEST_DONE_KEY,"1");
-    if(msg)msg.textContent='Přihlášena hráčka: '+p.name;
-    render();tcGoOverview();return;
+    if(msg)msg.textContent="Přihlášena hráčka: "+p.name;
+    render();
+    tcGoOverview();
+    return;
   }
 
-  if(msg)msg.textContent='Kód nenalezen.';
+  if(msg)msg.textContent="Kód nenalezen.";
 }
 function accessLogout(){
   currentPlayerId=null;
@@ -1681,7 +1738,7 @@ function accessLogout(){
   render();
 }
 
-function playerLogin(){let name=norm(document.getElementById('loginName').value),sec=document.getElementById('loginSecret').value.trim(),p=players().find(x=>norm(x.name)===name);if(!p){msg('Hráč nenalezen.');return}if(p.pin){if(sec!==p.pin){msg('Špatný PIN.');return}}else{if(sec.toUpperCase()!==String(p.code).toUpperCase()){msg('Špatný kód.');return}}currentPlayerId=p.id;tcSetOwnerDevice(false);if(document.getElementById('stay').checked)localStorage.setItem(LL,p.id);else localStorage.removeItem(LL);msg('Přihlášeno.');render()}
+function playerLogin(){let name=norm(document.getElementById('loginName').value),sec=document.getElementById('loginSecret').value.trim(),p=players().find(x=>norm(x.name)===name);if(!p){msg('Hráč nenalezen.');return}if(p.pin){if(sec!==p.pin){msg('Špatný PIN.');return}}else{if(sec.toUpperCase()!==String(p.code).toUpperCase()){msg('Špatný kód.');return}}currentPlayerId=p.id;if(document.getElementById('stay').checked)localStorage.setItem(LL,p.id);else localStorage.removeItem(LL);msg('Přihlášeno.');render()}
 function msg(t){document.getElementById('loginMsg').textContent=t}
 function playerLogout(){currentPlayerId=null;localStorage.removeItem(LL);document.getElementById('playerPanel').classList.add('hidden');document.getElementById('pinSetup').classList.add('hidden');msg('Odhlášeno.')}
 function savePin(){let a=document.getElementById('pin1').value.trim(),b=document.getElementById('pin2').value.trim();if(!/^\d{4}$/.test(a))return msg('PIN musí mít 4 čísla.');if(a!==b)return msg('PINy nesedí.');let p=players(),x=p.find(y=>y.id===currentPlayerId);if(x){x.pin=a;setPlayers(p);msg('PIN uložen.');render()}}
@@ -2131,25 +2188,15 @@ function tcShowOwnerId(){
   if(navigator.clipboard)navigator.clipboard.writeText(id).catch(()=>{});
 }
 
-function tcSetOwnerIdPrompt(){
-  let current=(typeof tcOwnerId==="function")?tcOwnerId():localStorage.getItem("tc_owner_id_v01");
-  let id=prompt("Vlož Owner ID z hlavního zařízení:",current||"");
-  if(!id)return;
-
-  id=String(id).trim();
-  if(!/^own_[A-Z0-9]{8}$/.test(id)){
-    alert("Owner ID má tvar například own_ABCDEFGH");
-    return;
-  }
-
-  localStorage.setItem("tc_owner_id_v01",id);
-  tcSetOwnerDevice(true);
+async function tcSetOwnerIdPrompt(){
+  let code=prompt("Zadej aktivační kód Owner zařízení:","");
+  if(!code)return;
 
   let status=document.getElementById("cloudStatus");
-  if(status)status.textContent="Owner zařízení aktivováno: "+id;
+  let ok=await tcActivateOwnerDevice(code,status);
 
-  if(typeof tcLiveSyncEnabled==="function"&&tcLiveSyncEnabled()){
-    setTimeout(tcStartLiveSync,100);
+  if(!ok){
+    alert("Neplatný aktivační kód Owner.");
   }
 }
 
@@ -2256,8 +2303,14 @@ function tcStartLiveSync(){
     return;
   }
   let team = (typeof tcUiActiveTeam === "function") ? tcUiActiveTeam() : {id:"zbiroh_default",name:"TJ Město Zbiroh"};
-  let ownerId = (typeof tcOwnerId === "function") ? tcOwnerId() : "own_local";
+  let ownerId = (typeof tcOwnerId === "function") ? tcOwnerId() : "";
   let teamId = team.id || ((typeof tcUiActiveTeamId === "function") ? tcUiActiveTeamId() : "zbiroh_default");
+
+  if(!ownerId){
+    let e=document.getElementById("cloudStatus");
+    if(e)e.textContent="Zařízení čeká na týmový odkaz nebo přístupový kód.";
+    return;
+  }
 
   try{
     tcLiveSyncUnsubscribe = window.tcCloudWatchSnapshot(ownerId,teamId,(snapshot)=>{
