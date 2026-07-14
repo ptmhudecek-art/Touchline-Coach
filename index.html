@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Touchline Coach</title>
+<!-- TC BOD 0.4 NO AUTO OWNER -->
 <!-- TC BOD 0.3 OWNER ACTIVATION -->
 <!-- TC BOD 0.2 LOCAL PROFILE PHOTO -->
 <!-- TC BOD 0.1 OVERVIEW DAY DETAIL -->
@@ -638,10 +639,13 @@ function tcActiveTeamId(){
 }
 function tcWithIdentity(obj){
   obj=obj||{};
-  if(!obj.ownerId)obj.ownerId=tcOwnerId();
+
+  const ownerId=tcOwnerId();
+  if(ownerId&&!obj.ownerId)obj.ownerId=ownerId;
   if(!obj.teamId)obj.teamId=tcActiveTeamId();
   if(!obj.created)obj.created=new Date().toISOString();
   obj.updated=new Date().toISOString();
+
   return obj;
 }
 function tcRoleCode(role){
@@ -1180,7 +1184,7 @@ function tcBuildTeamIdentity(){
   let admins=s.filter(x=>x.role==="admin").map(x=>x.id);
   let assistants=s.filter(x=>x.role!=="admin").map(x=>x.id);
   return {
-    ownerId:(typeof tcOwnerId==="function")?tcOwnerId():"own_local",
+    ownerId:(typeof tcOwnerId==="function")?tcOwnerId():"",
     teamId:teamId,
     teamName:team.name||"Tým",
     mainCoachId:admins[0]||null,
@@ -1235,7 +1239,7 @@ function tcRenderIdentityPanel(){
   let s=(typeof staff==="function")?staff():[];
   let p=(typeof players==="function")?players():[];
   let role=(typeof tcPermissionsLabel==="function")?tcPermissionsLabel():((typeof tcCurrentRole==="function")?tcCurrentRole():"Owner");
-  let owner=(typeof tcOwnerId==="function")?tcOwnerId():"own_local";
+  let owner=(typeof tcOwnerId==="function")?tcOwnerId():"";
   let mainId=identity&&identity.mainCoachId?identity.mainCoachId:null;
   let mainName=mainId?tcIdentityNameById(s,mainId):"není";
   let assistants=identity&&identity.assistantIds?identity.assistantIds.length:s.filter(x=>x.role!=="admin").length;
@@ -1261,7 +1265,7 @@ tcRenderIdentityPanel = function(){
     let box=document.getElementById("identityPanel");
     if(!box)return;
     let team=(typeof tcUiActiveTeam==="function")?tcUiActiveTeam():{id:"zbiroh_default",name:"TJ Město Zbiroh"};
-    let owner=(typeof tcOwnerId==="function")?tcOwnerId():"own_local";
+    let owner=(typeof tcOwnerId==="function")?tcOwnerId():"";
     let role=(typeof tcPermissionsLabel==="function")?tcPermissionsLabel():"Owner";
     box.innerHTML="<div><b>Role:</b> "+role+"</div><div><b>Owner ID:</b> <code>"+owner+"</code></div><div><b>Aktivní tým:</b> "+(team.name||"Tým")+"</div>";
   }
@@ -1274,9 +1278,18 @@ function tcRenderIdentityStatus(){let e=document.getElementById("identityStatus"
 function tcCurrentStaff(){return staff().find(s=>s.id===currentStaffId)||null}
 function tcCurrentRole(){
   if(typeof tcIdentityRoleForUser==="function"&&!tcCurrentRole._lock){
-    try{tcCurrentRole._lock=true;return tcIdentityRoleForUser()}finally{tcCurrentRole._lock=false}
+    try{
+      tcCurrentRole._lock=true;
+      return tcIdentityRoleForUser();
+    }finally{
+      tcCurrentRole._lock=false;
+    }
   }
-  let st=tcCurrentStaff();if(st)return st.role||"view";if(currentPlayerId)return "player";return "owner"
+
+  let st=tcCurrentStaff();
+  if(st)return st.role||"view";
+  if(currentPlayerId)return "player";
+  return tcIsOwnerDevice() ? "owner" : "guest";
 }
 function tcCan(area,action){
   let r=tcCurrentRole();
@@ -1411,10 +1424,38 @@ async function tcActivateOwnerDevice(code,msgElement){
 }
 
 
+
+/* --- TC BOD 0.4: No Automatic Owner --- */
+function tcSanitizeOwnerState(){
+  const storedOwner=localStorage.getItem(TC_OWNER_ID_KEY)||localStorage.getItem("tc_owner_id_v01")||"";
+  const isOwnerDevice=localStorage.getItem(TC_OWNER_DEVICE_KEY)==="1";
+  const hasRole=!!localStorage.getItem(LL)||!!localStorage.getItem(LRT);
+
+  // Staré náhodně vytvořené Owner ID nesmí přežít.
+  if(storedOwner && storedOwner!==TC_FIXED_OWNER_ID){
+    localStorage.removeItem(TC_OWNER_ID_KEY);
+    localStorage.removeItem("tc_owner_id_v01");
+    localStorage.setItem(TC_OWNER_DEVICE_KEY,"0");
+  }
+
+  // Owner zařízení smí existovat pouze se správným pevným Owner ID.
+  if(isOwnerDevice){
+    localStorage.setItem(TC_OWNER_ID_KEY,TC_FIXED_OWNER_ID);
+    localStorage.setItem("tc_owner_id_v01",TC_FIXED_OWNER_ID);
+  }
+
+  // Bez role a bez Owner aktivace musí být zařízení skutečně nepřihlášené.
+  if(!hasRole && localStorage.getItem(TC_OWNER_DEVICE_KEY)!=="1"){
+    localStorage.removeItem(TC_GUEST_DONE_KEY);
+  }
+}
+
+
 function tcInitOwnerDevice(){
   if(localStorage.getItem(TC_OWNER_DEVICE_KEY)===null){
     localStorage.setItem(TC_OWNER_DEVICE_KEY,"0");
   }
+  tcSanitizeOwnerState();
 }
 
 function tcIsOwnerDevice(){
@@ -1459,7 +1500,7 @@ function tcPublishGuestLogin(){
     if(e)e.textContent="Cloud funkce pro veřejný vstup není dostupná.";
     return;
   }
-  let ownerId=(typeof tcOwnerId==="function")?tcOwnerId():"own_local";
+  let ownerId=(typeof tcOwnerId==="function")?tcOwnerId():"";
   let teamId=(typeof tcUiActiveTeamId==="function")?tcUiActiveTeamId():"zbiroh_default";
   window.tcCloudPublishPublicClub(TC_PUBLIC_CLUB_ID,ownerId,teamId).then(()=>{
     if(e)e.textContent="Hráčský vstup publikován pro tým: "+teamId;
@@ -1679,13 +1720,22 @@ function tcEnsureMatchEditor(){
 
 
 function tcPublicStart(){
-  if(typeof tcOwnerDeviceShouldStartAsOwner==="function" && tcOwnerDeviceShouldStartAsOwner()){
+  tcSanitizeOwnerState();
+
+  if(tcOwnerDeviceShouldStartAsOwner()){
     if(typeof tcForceOwnerMode==="function")tcForceOwnerMode();
     tcGoOverview();
     return;
   }
-  let logged=!!localStorage.getItem(LL)||!!localStorage.getItem(LRT)||localStorage.getItem(TC_GUEST_DONE_KEY)==="1";
-  if(!logged)tcShowGuest();else tcGoOverview();
+
+  const hasPlayer=!!localStorage.getItem(LL);
+  const hasStaff=!!localStorage.getItem(LRT);
+
+  if(hasPlayer||hasStaff){
+    tcGoOverview();
+  }else{
+    tcShowGuest();
+  }
 }
 
 
@@ -2375,7 +2425,7 @@ async function tcPersistCurrentTeam(reason){
 function tcBuildTeamSnapshot(){
   let team = (typeof tcUiActiveTeam === "function") ? tcUiActiveTeam() : {id:"zbiroh_default",name:"TJ Město Zbiroh"};
   return {
-    ownerId: (typeof tcOwnerId === "function") ? tcOwnerId() : "own_local",
+    ownerId: (typeof tcOwnerId === "function") ? tcOwnerId() : "",
     teamId: team.id || ((typeof tcUiActiveTeamId === "function") ? tcUiActiveTeamId() : "zbiroh_default"),
     teamName: team.name || "Tým",
     savedAt: new Date().toISOString(),
@@ -2455,7 +2505,7 @@ function tcLoadTeamFromCloud(){
     return;
   }
   let team = (typeof tcUiActiveTeam === "function") ? tcUiActiveTeam() : {id:"zbiroh_default",name:"TJ Město Zbiroh"};
-  let ownerId = (typeof tcOwnerId === "function") ? tcOwnerId() : "own_local";
+  let ownerId = (typeof tcOwnerId === "function") ? tcOwnerId() : "";
   let teamId = team.id || ((typeof tcUiActiveTeamId === "function") ? tcUiActiveTeamId() : "zbiroh_default");
   window.tcCloudLoadSnapshot(ownerId,teamId).then(snapshot=>{
     tcApplyTeamSnapshot(snapshot);
@@ -2467,8 +2517,32 @@ function tcLoadTeamFromCloud(){
 }
 
 
-function restore(){setTimeout(tcRenderCloudAutoSaveState,0);if(typeof tcOwnerId==='function')tcOwnerId();tcMigrateDefaultKey(LP,[]);tcMigrateDefaultKey(LA,{});tcMigrateDefaultKey(LT,{});tcMigrateDefaultKey(LS,null);tcMigrateDefaultKey(LD,null);tcMigrateDefaultKey(LE,{});let id=localStorage.getItem(LL);if(id&&players().find(p=>p.id===id))currentPlayerId=id;let sid=localStorage.getItem(LRT);if(sid&&staff().find(s=>s.id===sid))currentStaffId=sid
+function restore(){
+  setTimeout(tcRenderCloudAutoSaveState,0);
+
+  tcMigrateDefaultKey(LP,[]);
+  tcMigrateDefaultKey(LA,{});
+  tcMigrateDefaultKey(LT,{});
+  tcMigrateDefaultKey(LS,null);
+  tcMigrateDefaultKey(LD,null);
+  tcMigrateDefaultKey(LE,{});
+
+  let id=localStorage.getItem(LL);
+  if(id&&players().find(p=>p.id===id))currentPlayerId=id;
+  else{
+    currentPlayerId=null;
+    localStorage.removeItem(LL);
+  }
+
+  let sid=localStorage.getItem(LRT);
+  if(sid&&staff().find(s=>s.id===sid))currentStaffId=sid;
+  else{
+    currentStaffId=null;
+    localStorage.removeItem(LRT);
+  }
+
   tcInitOwnerDevice();
+  tcSanitizeOwnerState();
 }
 
 function tcApplyRoleBasedUI(){
