@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Touchline Coach</title>
+<!-- TC 1.0.1 ATTENDANCE ALL FUTURE EVENTS -->
 <!-- TC BOD 0.4 NO AUTO OWNER -->
 <!-- TC BOD 0.3 OWNER ACTIVATION -->
 <!-- TC BOD 0.2 LOCAL PROFILE PHOTO -->
@@ -313,6 +314,15 @@ button[onclick*="deleteVideo"],
   width:100%;
 }
 #miniCal .md.tcMiniDayLink:active{transform:scale(.96)}
+</style>
+
+
+<style>
+/* TC 1.0.1 - docházka ke všem budoucím akcím */
+.attEventCard{margin-bottom:12px}
+.attEventHead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:10px}
+.attEventMeta{font-size:13px;color:#aeb6c0}
+.attEventPlayers{display:grid;gap:10px}
 </style>
 
 </head>
@@ -680,9 +690,54 @@ function removePlayer(id){if(!tcGuard("team","edit"))return;setPlayers(players()
 function resetPin(id){if(!tcGuard("team","edit"))return;let p=players(),x=p.find(y=>y.id===id);if(x)x.pin='';setPlayers(p);render()}
 function copyCodes(){document.getElementById('copyBox').textContent=players().map(p=>p.name+' | '+p.code).join('\n');navigator.clipboard.writeText(document.getElementById('copyBox').textContent)}
 
+
+/* --- TC 1.0.1 Attendance by Event --- */
+function tcFutureEventKeys(){
+  const today=iso(new Date());
+  return Object.keys(trs()).filter(key=>key>=today).sort();
+}
+
+function tcAttendanceStore(){
+  let data=att()||{};
+  const keys=Object.keys(data);
+  const isLegacy=keys.some(key=>!key.match(/^\d{4}-\d{2}-\d{2}$/));
+
+  if(isLegacy){
+    const nearest=nearestTrainingKey();
+    if(nearest){
+      const migrated={};
+      migrated[nearest]={...data};
+      tcTeamSave(LA,migrated);
+      return migrated;
+    }
+    return {};
+  }
+
+  return data;
+}
+
+function tcAttendanceForDate(date){
+  const store=tcAttendanceStore();
+  return store[date]||{};
+}
+
+function tcEventLabel(date,event){
+  const parts=date.split("-").map(Number);
+  const dt=new Date(parts[0],parts[1]-1,parts[2]);
+  const days=["NE","PO","ÚT","ST","ČT","PÁ","SO"];
+  const type=(event&&event.type)==="match"?"Utkání":"Trénink";
+  const time=event&&event.time?event.time:"čas nezadán";
+  const place=event&&event.place?event.place:"";
+  return {
+    title:`${days[dt.getDay()]} ${dt.getDate()}.${dt.getMonth()+1}. • ${type}`,
+    meta:[time,place].filter(Boolean).join(" • ")
+  };
+}
+
+
 function label(v){return {yes:'Přijde',injury:'Zranění',work:'Práce/škola',other:'Ostatní',none:'Bez odpovědi'}[v||'none']}
 function cls(v){return v==='yes'?'green':v==='injury'?'red':v==='work'?'yellow':'gray'}
-async function setAttendance(id,value){
+async function setAttendance(date,id,value){
   if(currentPlayerId&&currentPlayerId!==id)return;
 
   if(currentPlayerId){
@@ -691,16 +746,18 @@ async function setAttendance(id,value){
     if(!tcGuard("attendance","edit"))return;
   }
 
-  const attendance=att();
-  attendance[id]=value;
-  tcTeamSave(LA,attendance);
+  const store=tcAttendanceStore();
+  if(!store[date])store[date]={};
+  store[date][id]=value;
+  tcTeamSave(LA,store);
 
   renderAttendance();
   renderSummary();
   renderPremiumPřehled();
+  renderPlayerPanel();
 
   try{
-    await tcPersistCurrentTeam("docházka");
+    await tcPersistCurrentTeam("docházka "+date);
   }catch(error){
     alert("Docházka je lokálně uložená, ale cloud selhal: "+(error.message||error));
   }
@@ -765,31 +822,96 @@ function renderPlayers(){
   box.innerHTML=h+'</table>';
 }
 function renderAttendance(){
-  let p=players(),a=att();
-  let box=document.getElementById('attendanceList');
+  const roster=players();
+  const box=document.getElementById("attendanceList");
   if(!box)return;
 
-  if(tcIsPlayerRole()){
-    let me=p.find(x=>x.id===currentPlayerId);
-    if(!me){box.innerHTML='<p class=small>Nejsi přihlášen jako hráč.</p>';return}
-    let v=a[me.id]||'none';
-    box.innerHTML=`<div class=player><div class=space><b>${esc(me.name)}</b><span class="pill ${cls(v)}">${label(v)}</span></div><div class=row style="margin-top:8px"><button class=btn2 onclick="setAttendance('${me.id}','yes')">✅ Přijdu</button><button class=btn2 onclick="setAttendance('${me.id}','injury')">✚ Zranění</button><button class=btn2 onclick="setAttendance('${me.id}','work')">💼 Práce/škola</button><button class=btn2 onclick="setAttendance('${me.id}','other')">● Ostatní</button></div></div>`;
+  const dates=tcFutureEventKeys();
+  if(!dates.length){
+    box.innerHTML='<p class="small">Nejsou naplánované žádné budoucí akce.</p>';
     return;
   }
 
-  if(!p.length){box.innerHTML='<p class=small>Nejdřív vlož hráče.</p>';return}
-  let h='';
-  p.forEach(x=>{
-    let v=a[x.id]||'none';
-    if(!tcIsAdminLike()){
-      h+=`<div class=player><div class=space><b>${esc(x.name)}</b><span class="pill ${cls(v)}">${label(v)}</span></div></div>`;
+  let htmlOut="";
+
+  dates.forEach(date=>{
+    const event=trs()[date]||{};
+    const info=tcEventLabel(date,event);
+    const dayAttendance=tcAttendanceForDate(date);
+
+    htmlOut+=`<div class="card attEventCard">
+      <div class="attEventHead">
+        <div><b>${esc(info.title)}</b><div class="attEventMeta">${esc(info.meta)}</div></div>
+      </div>
+      <div class="attEventPlayers">`;
+
+    if(tcIsPlayerRole()){
+      const me=roster.find(x=>x.id===currentPlayerId);
+      if(!me){
+        htmlOut+='<p class="small">Nejsi přihlášen jako hráč.</p>';
+      }else{
+        const value=dayAttendance[me.id]||"none";
+        htmlOut+=`<div class="player">
+          <div class="space"><b>${esc(me.name)}</b><span class="pill ${cls(value)}">${label(value)}</span></div>
+          <div class="row" style="margin-top:8px">
+            <button class="btn2" onclick="setAttendance('${date}','${me.id}','yes')">✅ Přijdu</button>
+            <button class="btn2" onclick="setAttendance('${date}','${me.id}','injury')">✚ Zranění</button>
+            <button class="btn2" onclick="setAttendance('${date}','${me.id}','work')">💼 Práce/škola</button>
+            <button class="btn2" onclick="setAttendance('${date}','${me.id}','other')">● Ostatní</button>
+          </div>
+        </div>`;
+      }
+    }else if(!roster.length){
+      htmlOut+='<p class="small">Nejdřív vlož hráče.</p>';
     }else{
-      h+=`<div class=player><div class=space><b>${esc(x.name)}</b><span class="pill ${cls(v)}">${label(v)}</span></div><div class=row style="margin-top:8px"><button class=btn2 onclick="setAttendance('${x.id}','yes')">✅ Přijde</button><button class=btn2 onclick="setAttendance('${x.id}','injury')">✚ Zranění</button><button class=btn2 onclick="setAttendance('${x.id}','work')">💼 Práce/škola</button><button class=btn2 onclick="setAttendance('${x.id}','other')">● Ostatní</button><button class=btn2 onclick="setAttendance('${x.id}','none')">○ Bez odpovědi</button></div></div>`;
+      roster.forEach(player=>{
+        const value=dayAttendance[player.id]||"none";
+        htmlOut+=`<div class="player">
+          <div class="space"><b>${esc(player.name)}</b><span class="pill ${cls(value)}">${label(value)}</span></div>`;
+
+        if(tcIsAdminLike()){
+          htmlOut+=`<div class="row" style="margin-top:8px">
+            <button class="btn2" onclick="setAttendance('${date}','${player.id}','yes')">✅ Přijde</button>
+            <button class="btn2" onclick="setAttendance('${date}','${player.id}','injury')">✚ Zranění</button>
+            <button class="btn2" onclick="setAttendance('${date}','${player.id}','work')">💼 Práce/škola</button>
+            <button class="btn2" onclick="setAttendance('${date}','${player.id}','other')">● Ostatní</button>
+            <button class="btn2" onclick="setAttendance('${date}','${player.id}','none')">○ Bez odpovědi</button>
+          </div>`;
+        }
+
+        htmlOut+="</div>";
+      });
     }
+
+    htmlOut+="</div></div>";
   });
-  box.innerHTML=h;
+
+  box.innerHTML=htmlOut;
 }
-function renderSummary(){let s={yes:0,injury:0,work:0,other:0,none:0},a=att();players().forEach(p=>s[a[p.id]||'none']++);let exc=s.injury+s.work+s.other;[['sumYes',s.yes+' Přijde'],['sumInj',s.injury+' Zranění'],['sumWork',s.work+' Práce/škola'],['sumOther',s.other+' Ostatní'],['sumNone',s.none+' Bez odpovědi'],['hYes',s.yes+' přijde'],['hExc',exc+' omluveno'],['hNone',s.none+' bez reakce']].forEach(x=>{let e=document.getElementById(x[0]);if(e)e.textContent=x[1]})}
+function renderSummary(){
+  const key=nearestTrainingKey();
+  const dayAttendance=key?tcAttendanceForDate(key):{};
+  let summary={yes:0,injury:0,work:0,other:0,none:0};
+
+  players().forEach(player=>{
+    summary[dayAttendance[player.id]||"none"]++;
+  });
+
+  const excused=summary.injury+summary.work+summary.other;
+  [
+    ["sumYes",summary.yes+" Přijde"],
+    ["sumInj",summary.injury+" Zranění"],
+    ["sumWork",summary.work+" Práce/škola"],
+    ["sumOther",summary.other+" Ostatní"],
+    ["sumNone",summary.none+" Bez odpovědi"],
+    ["hYes",summary.yes+" přijde"],
+    ["hExc",excused+" omluveno"],
+    ["hNone",summary.none+" bez reakce"]
+  ].forEach(item=>{
+    const element=document.getElementById(item[0]);
+    if(element)element.textContent=item[1];
+  });
+}
 
 function renderCal(){let grid=document.getElementById('cal');grid.innerHTML='';let months=['leden','únor','březen','duben','květen','červen','červenec','srpen','září','říjen','listopad','prosinec'];document.getElementById('monthTitle').textContent=months[viewDate.getMonth()]+' '+viewDate.getFullYear();['Po','Út','St','Čt','Pá','So','Ne'].forEach(d=>grid.innerHTML+='<div class=head>'+d+'</div>');let y=viewDate.getFullYear(),m=viewDate.getMonth(),first=new Date(y,m,1),start=(first.getDay()+6)%7,days=new Date(y,m+1,0).getDate(),t=trs(),today=iso(new Date());for(let i=0;i<start;i++)grid.innerHTML+='<div></div>';for(let d=1;d<=days;d++){let date=iso(new Date(y,m,d));grid.innerHTML+=`<button class="day ${t[date]?'has':''} ${date===today?'today':''}" onclick="selectDay('${date}')">${d}${t[date]?'<span class=dot></span>':''}</button>`}
   setTimeout(tcEnhanceCalendarColors,50);
@@ -1792,7 +1914,31 @@ function playerLogin(){let name=norm(document.getElementById('loginName').value)
 function msg(t){document.getElementById('loginMsg').textContent=t}
 function playerLogout(){currentPlayerId=null;localStorage.removeItem(LL);document.getElementById('playerPanel').classList.add('hidden');document.getElementById('pinSetup').classList.add('hidden');msg('Odhlášeno.')}
 function savePin(){let a=document.getElementById('pin1').value.trim(),b=document.getElementById('pin2').value.trim();if(!/^\d{4}$/.test(a))return msg('PIN musí mít 4 čísla.');if(a!==b)return msg('PINy nesedí.');let p=players(),x=p.find(y=>y.id===currentPlayerId);if(x){x.pin=a;setPlayers(p);msg('PIN uložen.');render()}}
-function renderPlayerPanel(){let p=players().find(x=>x.id===currentPlayerId),pan=document.getElementById('playerPanel'),pin=document.getElementById('pinSetup');if(!p){pan.classList.add('hidden');pin.classList.add('hidden');return}pin.classList.toggle('hidden',!!p.pin);let v=att()[p.id]||'none';pan.classList.remove('hidden');pan.innerHTML=`<div class=playerPřehled>${esc(p.name)}</div><p>Stav: <span class="pill ${cls(v)}">${label(v)}</span></p><div class=row><button class=btn2 onclick="setAttendance('${p.id}','yes')">✅ Přijdu</button><button class=btn2 onclick="setAttendance('${p.id}','injury')">✚ Zranění</button><button class=btn2 onclick="setAttendance('${p.id}','work')">💼 Práce/škola</button><button class=btn2 onclick="setAttendance('${p.id}','other')">● Ostatní</button></div>`}
+function renderPlayerPanel(){
+  const player=players().find(x=>x.id===currentPlayerId);
+  const panel=document.getElementById("playerPanel");
+  const pin=document.getElementById("pinSetup");
+
+  if(!player){
+    panel.classList.add("hidden");
+    pin.classList.add("hidden");
+    return;
+  }
+
+  pin.classList.toggle("hidden",!!player.pin);
+  const key=nearestTrainingKey();
+  const value=key?(tcAttendanceForDate(key)[player.id]||"none"):"none";
+
+  panel.classList.remove("hidden");
+  panel.innerHTML=`<div class="playerPřehled">${esc(player.name)}</div>
+    <p>Nejbližší akce: <span class="pill ${cls(value)}">${label(value)}</span></p>
+    ${key?`<div class="row">
+      <button class="btn2" onclick="setAttendance('${key}','${player.id}','yes')">✅ Přijdu</button>
+      <button class="btn2" onclick="setAttendance('${key}','${player.id}','injury')">✚ Zranění</button>
+      <button class="btn2" onclick="setAttendance('${key}','${player.id}','work')">💼 Práce/škola</button>
+      <button class="btn2" onclick="setAttendance('${key}','${player.id}','other')">● Ostatní</button>
+    </div>`:'<p class="small">Není naplánovaná žádná budoucí akce.</p>'}`;
+}
 
 
 
@@ -2127,8 +2273,9 @@ function renderPremiumPřehled(){
     }
   }
 
-  let s={yes:0,injury:0,work:0,other:0,none:0},a=att();
-  players().forEach(p=>s[a[p.id]||'none']++);
+  let s={yes:0,injury:0,work:0,other:0,none:0};
+  let eventAttendance=key?tcAttendanceForDate(key):{};
+  players().forEach(p=>s[eventAttendance[p.id]||'none']++);
   let exc=s.injury+s.work+s.other;
   [['premiumYes',s.yes],['premiumExc',exc],['premiumNone',s.none]].forEach(x=>{let e=document.getElementById(x[0]);if(e)e.textContent=x[1]});
   renderMiniCal();
